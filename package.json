@@ -1,0 +1,36 @@
+{
+  "name": "xcel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "run-p dev:backend dev:frontend",
+    "dev:backend": "convex dev",
+    "dev:frontend": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@auth/core": "^0.37.0",
+    "@convex-dev/auth": "^0.0.90",
+    "@zegocloud/zego-uikit-prebuilt": "^2.17.0",
+    "convex": "^1.28.0",
+    "convex-helpers": "^0.1.104",
+    "next": "16.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zego-express-engine-webrtc": "^3.11.0",
+    "zego-superboard-web": "^2.15.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.0",
+    "npm-run-all2": "^8.0.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
