@@ -1,6 +1,6 @@
 import { defineTable } from "convex/server";
 import { Infer, v } from "convex/values";
-import { mutation, query, MutationCtx } from "../_generated/server";
+import { mutation, query, MutationCtx, internalQuery, internalMutation } from "../_generated/server";
 import { getCurrentUserOrThrow, getUserByIdOrThrow, isRole } from "../model/users";
 import { Id } from "../_generated/dataModel";
 
@@ -333,3 +333,61 @@ export const rescheduleBooking = mutation({
         });
     }
 })
+
+// Internal query to verify booking exists and get participants
+export const verifyBookingAndParticipants = internalQuery({
+    args: {
+        bookingId: v.id("bookings"),
+        userId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const booking = await ctx.db.get(args.bookingId);
+
+        if (!booking) {
+            throw new Error("Booking not found");
+        }
+
+        // Verify the user is part of this booking
+        if (booking.fromUserId !== args.userId && booking.toUserId !== args.userId) {
+            throw new Error("User is not a participant in this booking");
+        }
+
+        // Get both participants
+        const tutor = await ctx.db.get(booking.toUserId);
+        const student = await ctx.db.get(booking.fromUserId);
+
+        if (!tutor || !student) {
+            throw new Error("One or both participants not found");
+        }
+
+        return {
+            booking,
+            tutor: {
+                _id: tutor._id,
+                name: tutor.name || tutor.email || "Unknown Tutor",
+            },
+            student: {
+                _id: student._id,
+                name: student.name || student.email || "Unknown Student",
+            },
+        };
+    },
+});
+
+// Internal mutation to record video call started
+export const recordVideoCallStarted = internalMutation({
+    args: {
+        bookingId: v.id("bookings"),
+    },
+    handler: async (ctx, args) => {
+        const booking = await ctx.db.get(args.bookingId);
+
+        if (!booking) {
+            throw new Error("Booking not found");
+        }
+
+        await ctx.db.patch(args.bookingId, {
+            videoCallStartedAt: Date.now(),
+        });
+    },
+});

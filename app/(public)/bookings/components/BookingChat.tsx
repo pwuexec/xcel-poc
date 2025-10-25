@@ -15,23 +15,33 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName }
     const [message, setMessage] = useState("");
     const [isChatOpen, setIsChatOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const hasMarkedAsReadRef = useRef(false);
 
-    const messages = useQuery(api.schemas.messages.getBookingMessages, { bookingId });
+    const messages = useQuery(
+        api.schemas.messages.getBookingMessages,
+        isChatOpen ? { bookingId } : "skip"
+    );
     const unreadCount = useQuery(api.schemas.messages.getUnreadCount, { bookingId });
     const sendMessage = useMutation(api.schemas.messages.sendMessage);
     const markMessagesAsRead = useMutation(api.schemas.messages.markMessagesAsRead);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
+    // Auto-scroll when new messages arrive and chat is open
     useEffect(() => {
-        if (isChatOpen) {
-            scrollToBottom();
-            // Mark messages as read when chat is opened
-            markMessagesAsRead({ bookingId });
+        if (isChatOpen && messages) {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
-    }, [messages, isChatOpen, markMessagesAsRead, bookingId]);
+    }, [messages, isChatOpen]);
+
+    const handleToggleChat = () => {
+        const willBeOpen = !isChatOpen;
+        setIsChatOpen(willBeOpen);
+
+        // Mark messages as read when opening chat (only once per session)
+        if (willBeOpen && !hasMarkedAsReadRef.current) {
+            markMessagesAsRead({ bookingId });
+            hasMarkedAsReadRef.current = true;
+        }
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,7 +61,7 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName }
     return (
         <div className="border-t border-zinc-200 dark:border-zinc-800">
             <button
-                onClick={() => setIsChatOpen(!isChatOpen)}
+                onClick={handleToggleChat}
                 className={`w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all ${hasUnread ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
             >
                 <div className="flex items-center gap-3">

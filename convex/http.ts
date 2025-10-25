@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
-import { handleZegoTokenOptions, generateZegoToken } from "./zego";
+import { handleDailyRoomOptions, createDailyRoom } from "./daily";
 
 const http = httpRouter();
 
@@ -8,16 +8,16 @@ auth.addHttpRoutes(http);
 
 // CORS preflight
 http.route({
-    path: "/zego-token",
+    path: "/daily-room",
     method: "OPTIONS",
-    handler: handleZegoTokenOptions,
+    handler: handleDailyRoomOptions,
 });
 
-// POST -> gera token04
+// POST -> create Daily.co room
 http.route({
-    path: "/zego-token",
+    path: "/daily-room",
     method: "POST",
-    handler: generateZegoToken,
+    handler: createDailyRoom,
 });
 
 export default http;

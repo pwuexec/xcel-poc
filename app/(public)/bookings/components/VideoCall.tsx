@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import DailyIframe, { DailyCall } from "@daily-co/daily-js";
+import { generateWhiteboardToken } from "@/app/actions/whiteboardToken";
 
 interface VideoCallProps {
     bookingId: string;
@@ -9,224 +11,136 @@ interface VideoCallProps {
     onClose: () => void;
 }
 
-export default function VideoCall({ bookingId, userName, userId, onClose }: VideoCallProps) {
-    const meetingContainerRef = useRef<HTMLDivElement>(null);
+export default function VideoCall({
+    bookingId,
+    userName,
+    userId,
+    onClose,
+}: VideoCallProps) {
+    const callFrameRef = useRef<DailyCall | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const zpRef = useRef<any>(null);
-    const initializingRef = useRef(false);
+    const [whiteboardToken, setWhiteboardToken] = useState<string | null>(null);
 
     useEffect(() => {
-        // Prevent double initialization (React strict mode)
-        if (initializingRef.current) {
-            return;
-        }
+        let mounted = true;
 
-        let cancelled = false;
-        initializingRef.current = true;
-
-        const myMeeting = async (element: HTMLDivElement) => {
+        const initializeCall = async () => {
             try {
-                console.log("[VideoCall] Starting initialization...");
+                if (!containerRef.current) {
+                    throw new Error("Container ref not ready");
+                }
 
-                // 1. Load SDKs
-                const [
-                    { ZegoUIKitPrebuilt },
-                    { ZegoSuperBoardManager }
-                ] = await Promise.all([
-                    import("@zegocloud/zego-uikit-prebuilt"),
-                    import("zego-superboard-web")
-                ]);
+                // Generate whiteboard token
+                const token = await generateWhiteboardToken(userId, bookingId, userName);
+                if (!mounted) return;
+                setWhiteboardToken(token);
 
-                if (cancelled) return;
+                // Cleanup any existing instance first
+                if (callFrameRef.current) {
+                    callFrameRef.current.destroy();
+                    callFrameRef.current = null;
+                }
 
-                console.log("[VideoCall] SDKs loaded");
-
-                // 2. Fetch token from backend
+                // Fetch room URL from backend
                 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.replace("cloud", "site");
                 if (!convexUrl) {
                     throw new Error("Convex URL not configured");
                 }
 
-                const response = await fetch(`${convexUrl}/zego-token`, {
+                const response = await fetch(`${convexUrl}/daily-room`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userId, roomId: bookingId }),
+                    body: JSON.stringify({ bookingId, userId, userName }),
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch token: ${response.status}`);
+                    throw new Error(`Failed to create room: ${response.status}`);
                 }
 
-                const { token, appID } = await response.json();
+                const { roomUrl, token: dailyToken } = await response.json();
 
-                if (cancelled) return;
+                if (!mounted) return;
 
-                console.log("[VideoCall] Token received, appID:", appID);
-
-                // 3. Generate Kit Token
-                const kitToken = ZegoUIKitPrebuilt.generateKitTokenForProduction(
-                    Number(appID),
-                    token,
-                    bookingId,
-                    userId,
-                    userName
-                );
-
-                // 4. Create ZegoUIKit instance (following example pattern)
-                const zp = ZegoUIKitPrebuilt.create(kitToken);
-                zpRef.current = zp;
-
-                // Set to window for debugging (like in example)
-                // @ts-ignore
-                window.zp = zp;
-
-                console.log("[VideoCall] ZegoUIKitPrebuilt version:", ZegoUIKitPrebuilt.getVersion());
-
-                // 5. Add plugins (following example pattern)
-                zp.addPlugins({ ZegoSuperBoardManager });
-
-                // 6. Join room with configuration (following example structure)
-                zp.joinRoom({
-                    container: element,
-
-                    // Console level - only errors (like in example)
-                    console: ZegoUIKitPrebuilt.ConsoleError,
-
-                    // Scenario
-                    scenario: {
-                        mode: ZegoUIKitPrebuilt.GroupCall,
+                // Create Daily call frame
+                const callFrame = DailyIframe.createFrame(containerRef.current, {
+                    iframeStyle: {
+                        width: "100%",
+                        height: "100%",
+                        border: "0",
                     },
-
-                    // Prejoin view
-                    showPreJoinView: false,
-
-                    // Audio/Video settings
-                    turnOnMicrophoneWhenJoining: true,
-                    turnOnCameraWhenJoining: true,
-                    useFrontFacingCamera: true,
-
-                    // UI Controls
-                    showMyCameraToggleButton: true,
-                    showMyMicrophoneToggleButton: true,
-                    showAudioVideoSettingsButton: true,
-                    showScreenSharingButton: true,
-                    showTextChat: true,
-                    showUserList: true,
-                    showLayoutButton: true,
-                    showPinButton: true,
-                    showRemoveUserButton: false,
-
-                    // Layout
-                    layout: "Auto",
-                    showNonVideoUser: true,
-                    showOnlyAudioUser: true,
-
-                    // Room features
-                    showRoomTimer: true,
-
-                    // Notifications
-                    lowerLeftNotification: {
-                        showUserJoinAndLeave: true,
-                        showTextChat: true,
-                    },
-
-                    // Whiteboard configuration (like in example)
-                    whiteboardConfig: {
-                        showAddImageButton: true,
-                        showCreateAndCloseButton: true,
-                    },
-
-                    // Leave room handling
-                    showLeavingView: false,
-                    showLeaveRoomConfirmDialog: true,
-
-                    // Event callbacks (following example pattern)
-                    onJoinRoom: async () => {
-                        console.warn("[VideoCall] onJoinRoom");
-                        setLoading(false);
-                    },
-
-                    onLeaveRoom: () => {
-                        console.warn("[VideoCall] onLeaveRoom");
-                        handleCleanup();
-                        onClose();
-                    },
-
-                    onUserJoin: async (users) => {
-                        console.warn("[VideoCall] onUserJoin", users);
-                    },
-
-                    onUserLeave: (users) => {
-                        console.warn("[VideoCall] onUserLeave", users);
-                    },
-
-                    onInRoomMessageReceived: (messageInfo) => {
-                        console.warn("[VideoCall] onInRoomMessageReceived", messageInfo);
-                    },
-
-                    onWhiteboardUpdated: (state, whiteboardId) => {
-                        console.warn("[VideoCall] onWhiteboardUpdated", state, whiteboardId);
-                    },
-
-                    onLocalStreamUpdated: (state, streamID, stream) => {
-                        console.warn("[VideoCall] onLocalStreamUpdated", state, streamID, stream);
-                    },
-
-                    onScreenSharingStreamUpdated: (state, streamID, stream) => {
-                        console.warn("[VideoCall] onScreenSharingStreamUpdated", state, streamID, stream);
-                    },
-
-                    onCameraStateUpdated: (state) => {
-                        console.warn("[VideoCall] onCameraStateUpdated", state);
-                    },
-
-                    onMicrophoneStateUpdated: (state) => {
-                        console.warn("[VideoCall] onMicrophoneStateUpdated", state);
+                    showLeaveButton: true,
+                    showFullscreenButton: true,
+                    customIntegrations: {
+                        whiteboard: {
+                            allow: "camera; microphone; fullscreen; clipboard-read; clipboard-write; display-capture",
+                            controlledBy: "*",
+                            iconURL: "https://excalidraw.com/apple-touch-icon.png",
+                            label: "Whiteboard",
+                            location: "main",
+                            name: "Excalidraw",
+                            shared: true,
+                            src: `${process.env.NEXT_PUBLIC_APP_URL}/whiteboard?token=${token}`,
+                        },
                     },
                 });
 
-                console.log("✅ Video call initialized successfully");
+                if (!mounted) {
+                    callFrame.destroy();
+                    return;
+                }
 
+                callFrameRef.current = callFrame;
+
+                // Set up event listeners
+                callFrame
+                    .on("loaded", () => mounted && setLoading(false))
+                    .on("joined-meeting", () => mounted && setLoading(false))
+                    .on("left-meeting", onClose)
+                    .on("camera-error", () => {
+                        if (mounted) {
+                            setError("Camera permission denied or not available");
+                            setLoading(false);
+                        }
+                    })
+                    .on("error", (event) => {
+                        if (mounted) {
+                            setError(event?.errorMsg || "An error occurred");
+                            setLoading(false);
+                        }
+                    });
+
+                // Join the room
+                await callFrame.join({
+                    url: roomUrl,
+                    token: dailyToken,
+                    userName: userName,
+                });
             } catch (err: any) {
-                console.error("❌ Video call initialization error:", err);
-                if (!cancelled) {
+                if (mounted) {
                     setError(err?.message || "Failed to initialize video call");
                     setLoading(false);
                 }
             }
         };
 
-        const handleCleanup = () => {
-            if (zpRef.current) {
-                try {
-                    zpRef.current.destroy();
-                    zpRef.current = null;
-                } catch (err) {
-                    console.error("Cleanup error:", err);
-                }
-            }
-            initializingRef.current = false;
-        };
-
-        // Initialize when container is ready
-        if (meetingContainerRef.current) {
-            myMeeting(meetingContainerRef.current);
-        }
+        initializeCall();
 
         return () => {
-            cancelled = true;
-            handleCleanup();
+            mounted = false;
+            if (callFrameRef.current) {
+                callFrameRef.current.destroy();
+                callFrameRef.current = null;
+            }
         };
-    }, [bookingId, userId, userName, onClose]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookingId, userId, userName]); // onClose is intentionally omitted
 
     const handleManualClose = () => {
-        if (zpRef.current) {
-            try {
-                zpRef.current.destroy();
-            } catch (err) {
-                console.error("Error closing call:", err);
-            }
+        if (callFrameRef.current) {
+            callFrameRef.current.destroy();
+            callFrameRef.current = null;
         }
         onClose();
     };
@@ -235,7 +149,7 @@ export default function VideoCall({ bookingId, userName, userId, onClose }: Vide
         <div className="fixed inset-0 z-50 bg-black">
             {/* Loading State */}
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
+                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
                     <div className="text-center">
                         <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-white border-r-transparent mb-4"></div>
                         <p className="text-white text-lg">Connecting to video call...</p>
@@ -246,9 +160,11 @@ export default function VideoCall({ bookingId, userName, userId, onClose }: Vide
 
             {/* Error State */}
             {error && (
-                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 p-4">
+                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 p-4 z-10">
                     <div className="bg-red-900/20 border border-red-600 rounded-lg p-8 max-w-md w-full">
-                        <h3 className="text-xl font-bold text-red-500 mb-4">Connection Failed</h3>
+                        <h3 className="text-xl font-bold text-red-500 mb-4">
+                            Connection Failed
+                        </h3>
                         <p className="text-white mb-6">{error}</p>
                         <button
                             onClick={handleManualClose}
@@ -260,22 +176,8 @@ export default function VideoCall({ bookingId, userName, userId, onClose }: Vide
                 </div>
             )}
 
-            {/* Meeting Container (following example pattern) */}
-            <div
-                ref={meetingContainerRef}
-                className="w-full h-full"
-            />
-
-            {/* Manual Close Button (Emergency Exit) */}
-            {!loading && !error && (
-                <button
-                    onClick={handleManualClose}
-                    className="absolute top-4 right-4 z-50 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
-                    title="Emergency exit"
-                >
-                    ✕ Close
-                </button>
-            )}
+            {/* Video Call Container - Full Screen */}
+            <div ref={containerRef} className="w-full h-full" />
         </div>
     );
 }

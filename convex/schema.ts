@@ -3,6 +3,7 @@ import { authTables } from "@convex-dev/auth/server";
 import { bookings } from "./schemas/bookings";
 import { users } from "./schemas/users";
 import { messages } from "./schemas/messages";
+import { whiteboards } from "./schemas/whiteboards";
 
 
 const schema = defineSchema({
@@ -21,7 +22,12 @@ const schema = defineSchema({
   /**
    * Messages
    */
-  messages
+  messages,
+
+  /**
+   * Whiteboards
+   */
+  whiteboards
 });
 
 export default schema;
