@@ -126,9 +126,10 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName }
                                                     : "text-zinc-500 dark:text-zinc-400"
                                                     }`}
                                             >
-                                                {new Date(msg.timestamp).toLocaleTimeString([], {
+                                                {new Date(msg.timestamp).toLocaleTimeString('en-GB', {
                                                     hour: "2-digit",
                                                     minute: "2-digit",
+                                                    timeZone: "Europe/London",
                                                 })}
                                             </p>
                                         </div>

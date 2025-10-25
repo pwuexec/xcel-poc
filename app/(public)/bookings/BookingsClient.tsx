@@ -238,11 +238,12 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                                 <div>
                                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Date</p>
                                     <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {bookingDate.toLocaleDateString("en-US", {
+                                        {bookingDate.toLocaleDateString("en-GB", {
                                             weekday: "short",
                                             month: "short",
                                             day: "numeric",
                                             year: "numeric",
+                                            timeZone: "Europe/London",
                                         })}
                                     </p>
                                 </div>
@@ -252,9 +253,10 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                                 <div>
                                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Time</p>
                                     <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {bookingDate.toLocaleTimeString("en-US", {
+                                        {bookingDate.toLocaleTimeString("en-GB", {
                                             hour: "2-digit",
                                             minute: "2-digit",
+                                            timeZone: "Europe/London",
                                         })}
                                     </p>
                                 </div>
@@ -350,12 +352,13 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                                     {booking._id}
                                 </p>
                                 <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2">
-                                    Created {new Date(booking._creationTime).toLocaleDateString("en-US", {
+                                    Created {new Date(booking._creationTime).toLocaleDateString("en-GB", {
                                         year: "numeric",
                                         month: "long",
                                         day: "numeric",
                                         hour: "2-digit",
-                                        minute: "2-digit"
+                                        minute: "2-digit",
+                                        timeZone: "Europe/London",
                                     })}
                                 </p>
                             </div>
@@ -385,7 +388,14 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                                                     {formatBookingEvent(event)}
                                                 </p>
                                                 <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                                                    {new Date(event.timestamp).toLocaleString()}
+                                                    {new Date(event.timestamp).toLocaleString('en-GB', {
+                                                        year: "numeric",
+                                                        month: "short",
+                                                        day: "numeric",
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                        timeZone: "Europe/London",
+                                                    })}
                                                 </p>
                                             </div>
                                         </div>

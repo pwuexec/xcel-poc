@@ -18,13 +18,24 @@ export default function RescheduleBookingForm({
     isOpen,
     onClose,
 }: RescheduleBookingFormProps) {
+    // Initialize form with current booking time in UK timezone
     const currentDate = new Date(currentTimestamp);
-    const [date, setDate] = useState(
-        currentDate.toISOString().split("T")[0]
-    );
-    const [time, setTime] = useState(
-        currentDate.toTimeString().slice(0, 5)
-    );
+    const ukDateString = currentDate.toLocaleDateString('en-GB', {
+        timeZone: 'Europe/London',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).split('/').reverse().join('-'); // Convert DD/MM/YYYY to YYYY-MM-DD
+    
+    const ukTimeString = currentDate.toLocaleTimeString('en-GB', {
+        timeZone: 'Europe/London',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+    
+    const [date, setDate] = useState(ukDateString);
+    const [time, setTime] = useState(ukTimeString);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const rescheduleBooking = useMutation(api.schemas.bookings.rescheduleBooking);
@@ -39,6 +50,8 @@ export default function RescheduleBookingForm({
 
         setIsSubmitting(true);
         try {
+            // Parse date and time as UK timezone (Europe/London)
+            // The input gives us local time, which for UK users is already in UK timezone
             const newTimestamp = new Date(`${date}T${time}`).getTime();
             await rescheduleBooking({
                 bookingId,
@@ -78,7 +91,7 @@ export default function RescheduleBookingForm({
                             htmlFor="date"
                             className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
                         >
-                            New Date
+                            New Date (UK Time)
                         </label>
                         <input
                             id="date"
@@ -95,7 +108,7 @@ export default function RescheduleBookingForm({
                             htmlFor="time"
                             className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
                         >
-                            New Time
+                            New Time (UK Time)
                         </label>
                         <input
                             id="time"

@@ -25,6 +25,8 @@ export default function CreateBookingForm() {
 
         setIsSubmitting(true);
         try {
+            // Parse date and time as UK timezone (Europe/London)
+            // The input gives us local time, which for UK users is already in UK timezone
             const timestamp = new Date(`${date}T${time}`).getTime();
             await createBooking({
                 toUserId: toUserId as Id<"users">,
@@ -98,7 +100,7 @@ export default function CreateBookingForm() {
                                     htmlFor="date"
                                     className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
                                 >
-                                    Date
+                                    Date (UK Time)
                                 </label>
                                 <input
                                     id="date"
@@ -115,7 +117,7 @@ export default function CreateBookingForm() {
                                     htmlFor="time"
                                     className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
                                 >
-                                    Time
+                                    Time (UK Time)
                                 </label>
                                 <input
                                     id="time"

@@ -311,10 +311,11 @@ export default function AdminUsersPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                                                        {new Date(user._creationTime).toLocaleDateString("en-US", {
+                                                        {new Date(user._creationTime).toLocaleDateString("en-GB", {
                                                             year: "numeric",
                                                             month: "short",
                                                             day: "numeric",
+                                                            timeZone: "Europe/London",
                                                         })}
                                                     </div>
                                                 </td>
