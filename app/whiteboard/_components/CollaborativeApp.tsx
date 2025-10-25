@@ -2,10 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useRef, useEffect } from "react";
-import {
-    useBroadcastEvent,
-    useEventListener,
-} from "../../../liveblocks.config";
+import { useWhiteboardWebSocket } from "@/hooks/useWhiteboardWebSocket";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -56,7 +53,6 @@ interface CollaborativeAppProps {
 export function CollaborativeApp({ bookingId, userId, userName }: CollaborativeAppProps) {
     const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
     const [isDarkMode, setIsDarkMode] = useState(true);
-    const broadcast = useBroadcastEvent();
     const isReceivingUpdate = useRef(false);
     const lastBroadcastTime = useRef(0);
     const hasLoadedFromStorage = useRef(false);
@@ -70,6 +66,41 @@ export function CollaborativeApp({ bookingId, userId, userName }: CollaborativeA
 
     // Mutation to update Convex storage (using token-based mutation)
     const updateConvexStorage = useMutation(api.schemas.whiteboards.updateWhiteboardStateByToken);
+
+    // WebSocket connection for real-time collaboration
+    const { broadcast, isConnected, participants } = useWhiteboardWebSocket({
+        roomId: `whiteboard-${bookingId}`,
+        userId,
+        userName,
+        onMessage: (data) => {
+            if (!data || typeof data !== "object") return;
+
+            const broadcastEvent = data as BroadcastEvent;
+            if (broadcastEvent.type === "excalidraw-update" && excalidrawAPI) {
+                isReceivingUpdate.current = true;
+
+                // Update the scene with data from other users
+                const currentElements = excalidrawAPI.getSceneElements();
+                const reconciled = reconcileElements(currentElements, broadcastEvent.elements);
+
+                excalidrawAPI.updateScene({
+                    elements: reconciled,
+                    appState: broadcastEvent.appState,
+                    commitToHistory: false,
+                });
+
+                setTimeout(() => {
+                    isReceivingUpdate.current = false;
+                }, 50);
+            }
+        },
+        onUserJoined: (userId, userName, participantCount) => {
+            console.log(`${userName} joined the whiteboard (${participantCount} participants)`);
+        },
+        onUserLeft: (userId, userName, participantCount) => {
+            console.log(`${userName} left the whiteboard (${participantCount} participants)`);
+        },
+    });
 
     // Load persisted state when Excalidraw API is ready
     useEffect(() => {
@@ -96,30 +127,6 @@ export function CollaborativeApp({ bookingId, userId, userName }: CollaborativeA
             });
         }
     }, [excalidrawAPI, isDarkMode]);
-
-    // Listen for updates from other users
-    useEventListener(({ event }) => {
-        if (!event || typeof event !== "object") return;
-
-        const broadcastEvent = event as BroadcastEvent;
-        if (broadcastEvent.type === "excalidraw-update" && excalidrawAPI) {
-            isReceivingUpdate.current = true;
-
-            // Update the scene with data from other users
-            const currentElements = excalidrawAPI.getSceneElements();
-            const reconciled = reconcileElements(currentElements, broadcastEvent.elements);
-
-            excalidrawAPI.updateScene({
-                elements: reconciled,
-                appState: broadcastEvent.appState,
-                commitToHistory: false,
-            });
-
-            setTimeout(() => {
-                isReceivingUpdate.current = false;
-            }, 50);
-        }
-    });
 
     // Reconcile local and remote elements
     const reconcileElements = (localElements: ExcalidrawElement[], remoteElements: ExcalidrawElement[]) => {
@@ -176,11 +183,24 @@ export function CollaborativeApp({ bookingId, userId, userName }: CollaborativeA
                 ? 'bg-gray-800 border-gray-700 text-white'
                 : 'bg-gray-100 border-gray-300 text-gray-900'
                 }`}>
-                <div className={`px-3 py-1 rounded-md text-sm font-medium ${isDarkMode
-                    ? 'bg-blue-900/40 text-blue-300 border border-blue-700'
-                    : 'bg-blue-100 text-blue-700 border border-blue-300'
-                    }`}>
-                    {bookingId}
+                <div className="flex items-center gap-3">
+                    <div className={`px-3 py-1 rounded-md text-sm font-medium ${isDarkMode
+                        ? 'bg-blue-900/40 text-blue-300 border border-blue-700'
+                        : 'bg-blue-100 text-blue-700 border border-blue-300'
+                        }`}>
+                        {bookingId}
+                    </div>
+                    <div className={`px-2 py-1 rounded-md text-xs flex items-center gap-2 ${isConnected
+                            ? isDarkMode
+                                ? 'bg-green-900/40 text-green-300 border border-green-700'
+                                : 'bg-green-100 text-green-700 border border-green-300'
+                            : isDarkMode
+                                ? 'bg-red-900/40 text-red-300 border border-red-700'
+                                : 'bg-red-100 text-red-700 border border-red-300'
+                        }`}>
+                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        {isConnected ? `${participants} online` : 'Reconnecting...'}
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
