@@ -274,7 +274,11 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                         )}
 
                         {canPay && (
-                            <PaymentButton bookingId={booking._id} />
+                            <PaymentButton
+                                bookingId={booking._id}
+                                customerName={currentUser.name || undefined}
+                                customerEmail={currentUser.email!}
+                            />
                         )}
 
                         {canAcceptReject && (

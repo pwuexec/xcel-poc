@@ -47,6 +47,28 @@ export const bookingCompletedEventMetadata = v.object({
     completedAt: v.number(),
 });
 
+export const bookingPaymentInitiatedEventMetadata = v.object({
+    amount: v.number(),
+    currency: v.string(),
+    stripeSessionId: v.string(),
+});
+
+export const bookingPaymentSucceededEventMetadata = v.object({
+    amount: v.number(),
+    currency: v.string(),
+    stripePaymentIntentId: v.string(),
+});
+
+export const bookingPaymentFailedEventMetadata = v.object({
+    reason: v.optional(v.string()),
+});
+
+export const bookingPaymentRefundedEventMetadata = v.object({
+    amount: v.number(),
+    currency: v.string(),
+    stripePaymentIntentId: v.string(),
+});
+
 // Union type for all event metadata
 export const bookingEventMetadata = v.union(
     bookingCreatedEventMetadata,
@@ -55,6 +77,10 @@ export const bookingEventMetadata = v.union(
     bookingRescheduledEventMetadata,
     bookingCanceledEventMetadata,
     bookingCompletedEventMetadata,
+    bookingPaymentInitiatedEventMetadata,
+    bookingPaymentSucceededEventMetadata,
+    bookingPaymentFailedEventMetadata,
+    bookingPaymentRefundedEventMetadata,
 );
 
 export const bookingEvent = v.object({
@@ -66,7 +92,11 @@ export const bookingEvent = v.object({
         v.literal("rejected"),
         v.literal("rescheduled"),
         v.literal("canceled"),
-        v.literal("completed")
+        v.literal("completed"),
+        v.literal("payment_initiated"),
+        v.literal("payment_succeeded"),
+        v.literal("payment_failed"),
+        v.literal("payment_refunded")
     ),
     metadata: bookingEventMetadata,
 });
@@ -74,7 +104,7 @@ export const bookingEvent = v.object({
 export type BookingEvent = Infer<typeof bookingEvent>;
 
 // Helper function to add events to bookings
-async function addBookingEvent(
+export async function addBookingEvent(
     ctx: MutationCtx,
     bookingId: Id<"bookings">,
     userId: Id<"users">,
@@ -389,5 +419,16 @@ export const recordVideoCallStarted = internalMutation({
         await ctx.db.patch(args.bookingId, {
             videoCallStartedAt: Date.now(),
         });
+    },
+});
+
+// Internal query to get booking by ID (for Stripe action)
+export const getBookingById = internalQuery({
+    args: {
+        bookingId: v.id("bookings"),
+    },
+    handler: async (ctx, args) => {
+        const booking = await ctx.db.get(args.bookingId);
+        return booking;
     },
 });
