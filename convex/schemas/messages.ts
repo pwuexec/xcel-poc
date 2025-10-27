@@ -1,7 +1,7 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { getCurrentUserOrThrow } from "../model/users";
+import { getCurrentUserIdOrThrow } from "../model/users";
 import * as Messages from "../model/messages";
 
 export const messages = defineTable({
@@ -20,11 +20,11 @@ export const sendMessage = mutation({
         message: v.string(),
     },
     handler: async (ctx, args) => {
-        const currentUser = await getCurrentUserOrThrow(ctx);
+        const currentUserId = await getCurrentUserIdOrThrow(ctx);
 
         await Messages.sendMessageHelper(ctx, {
             bookingId: args.bookingId,
-            userId: currentUser._id,
+            userId: currentUserId,
             message: args.message,
         });
     },
@@ -35,11 +35,11 @@ export const getBookingMessages = query({
         bookingId: v.id("bookings"),
     },
     handler: async (ctx, args) => {
-        const currentUser = await getCurrentUserOrThrow(ctx);
+        const currentUserId = await getCurrentUserIdOrThrow(ctx);
 
         return await Messages.getBookingMessagesHelper(ctx, {
             bookingId: args.bookingId,
-            userId: currentUser._id,
+            userId: currentUserId,
         });
     },
 });
@@ -49,11 +49,25 @@ export const markMessagesAsRead = mutation({
         bookingId: v.id("bookings"),
     },
     handler: async (ctx, args) => {
-        const currentUser = await getCurrentUserOrThrow(ctx);
+        const currentUserId = await getCurrentUserIdOrThrow(ctx);
 
         await Messages.markMessagesAsReadHelper(ctx, {
             bookingId: args.bookingId,
-            userId: currentUser._id,
+            userId: currentUserId,
+        });
+    },
+});
+
+export const getUnreadCount = query({
+    args: {
+        bookingId: v.id("bookings"),
+    },
+    handler: async (ctx, args) => {
+        const currentUserId = await getCurrentUserIdOrThrow(ctx);
+
+        return await Messages.getUnreadMessageCount(ctx, {
+            bookingId: args.bookingId,
+            userId: currentUserId,
         });
     },
 });
