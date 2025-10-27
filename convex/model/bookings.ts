@@ -1,5 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { PaginationOptions, PaginationResult } from "convex/server";
 import { getCurrentUserOrThrow, getUserByIdOrThrow, isRole } from "./users";
 import { Infer, v } from "convex/values";
 
@@ -353,10 +354,14 @@ export async function getUserBookings(
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, userId);
     const isTutor = isRole(currentUser, "tutor");
-    const index = isTutor ? "toUserId" : "fromUserId";
+
+    // Use new indexes
+    const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
+    const fieldName = isTutor ? "toUserId" : "fromUserId";
 
     const bookings = await ctx.db.query("bookings")
-        .withIndex(index, (q) => q.eq(index, userId))
+        .withIndex(indexName, (q) => q.eq(fieldName, userId))
+        .order("desc")
         .collect();
 
     // Enrich bookings with user info
@@ -385,6 +390,75 @@ export async function getUserBookings(
     }));
 
     return bookingsWithUsers;
+}
+
+/**
+ * Helper to get paginated bookings for a user
+ */
+export async function getUserBookingsPaginated(
+    ctx: QueryCtx,
+    args: {
+        userId: Id<"users">;
+        paginationOpts: PaginationOptions;
+        status?: BookingStatus;
+    }
+) {
+    const currentUser = await getUserByIdOrThrow(ctx, args.userId);
+    const isTutor = isRole(currentUser, "tutor");
+
+    // Choose index based on whether status filter is provided
+    let query;
+    if (args.status !== undefined) {
+        // Use status-specific index
+        const indexName = isTutor ? "by_toUserId_status_timestamp" : "by_fromUserId_status_timestamp";
+        const fieldName = isTutor ? "toUserId" : "fromUserId";
+
+        query = ctx.db.query("bookings")
+            .withIndex(indexName, (q) =>
+                q.eq(fieldName, args.userId).eq("status", args.status!)
+            )
+            .order("desc");
+    } else {
+        // Use timestamp-only index
+        const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
+        const fieldName = isTutor ? "toUserId" : "fromUserId";
+
+        query = ctx.db.query("bookings")
+            .withIndex(indexName, (q) => q.eq(fieldName, args.userId))
+            .order("desc");
+    }
+
+    const paginationResult = await query.paginate(args.paginationOpts);
+
+    // Enrich bookings with user info
+    const enrichedPage = await Promise.all(paginationResult.page.map(async (booking) => {
+        const toUser = await getUserByIdOrThrow(ctx, booking.toUserId);
+        const fromUser = await getUserByIdOrThrow(ctx, booking.fromUserId);
+
+        // Fetch user info for all events
+        const eventsWithUsers = await Promise.all(booking.events.map(async (event) => {
+            const eventUser = await getUserByIdOrThrow(ctx, event.userId);
+            return {
+                ...event,
+                userName: eventUser.name || eventUser.email || "Unknown User",
+            };
+        }));
+
+        return {
+            booking: {
+                ...booking,
+                events: eventsWithUsers,
+            },
+            toUser,
+            fromUser,
+            currentUser
+        };
+    }));
+
+    return {
+        ...paginationResult,
+        page: enrichedPage,
+    };
 }
 
 /**

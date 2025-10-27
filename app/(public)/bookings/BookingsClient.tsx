@@ -2,32 +2,60 @@
 
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
+import { Preloaded, usePaginatedQuery, usePreloadedQuery, useMutation } from "convex/react";
+import { useSearchParams } from "next/navigation";
+import { useSearchParamsState } from "@/hooks/useSearchParamsState";
 import CreateBookingForm from "./components/CreateBookingForm";
 import RescheduleBookingForm from "./components/RescheduleBookingForm";
 import PaymentButton from "./components/PaymentButton";
 import BookingChat from "./components/BookingChat";
 import { getVideoCallUrl } from "./components/VideoCall";
 import { FunctionReturnType } from "convex/server";
-import { Preloaded, usePreloadedQuery, useMutation } from "convex/react";
 import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+
+type BookingWithUsers = FunctionReturnType<typeof api.schemas.bookings.getMyBookingsPaginated>["page"][0];
 
 interface BookingsClientProps {
-    preloadedBookings: Preloaded<typeof api.schemas.bookings.getMyBookings>;
+    preloadedBookings: Preloaded<typeof api.schemas.bookings.getMyBookingsPaginated>;
+    initialStatus?: string;
 }
 
-export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
-    const bookings = usePreloadedQuery(preloadedBookings);
-    const [selectedStatus, setSelectedStatus] = useState<string>("all");
+export function BookingsClient({ preloadedBookings, initialStatus }: BookingsClientProps) {
+    const searchParams = useSearchParams();
+    const { setParam, removeParam } = useSearchParamsState();
+    const statusFilter = searchParams.get("status") || initialStatus || "all";
 
-    const filteredBookings = bookings?.filter((item) => {
-        if (selectedStatus === "all") return true;
-        return item.booking.status === selectedStatus;
-    });
+    // Use the preloaded query result for initial render
+    const preloadedData = usePreloadedQuery(preloadedBookings);
+
+    // Use paginated query for subsequent updates and pagination
+    const { results, status, loadMore } = usePaginatedQuery(
+        api.schemas.bookings.getMyBookingsPaginated,
+        statusFilter === "all" ? {} : { status: statusFilter as any },
+        { initialNumItems: 10 }
+    );
+
+    // Use preloaded data until paginated query has loaded at least 10 items
+    // This prevents unnecessary re-renders and maintains SSR benefits
+    const displayResults = (results && results.length >= 10) ? results : preloadedData.page;
+    const displayStatus = (results && results.length >= 10) ? status : (preloadedData.isDone ? "Exhausted" : "CanLoadMore");
+
+    const handleStatusChange = (value: string) => {
+        if (value === "all") {
+            removeParam("status");
+        } else {
+            setParam("status", value);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
             <div className="mx-auto max-w-5xl px-4 py-8">
-                {/* Header */}
                 <div className="mb-8 flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                         Bookings
@@ -35,40 +63,62 @@ export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
                     <CreateBookingForm />
                 </div>
 
-                {/* Filter Tabs */}
-                <div className="flex gap-2">
-                    {["all", "awaiting_payment", "confirmed"].map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setSelectedStatus(status)}
-                            className={`px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors ${selectedStatus === status
-                                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                                : "bg-white text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                                }`}
-                        >
-                            {status.replace(/_/g, " ")}
-                        </button>
-                    ))}
-                </div>
+                <Tabs value={statusFilter} onValueChange={handleStatusChange} className="mb-6">
+                    <TabsList>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="pending">Pending</TabsTrigger>
+                        <TabsTrigger value="awaiting_payment">Awaiting Payment</TabsTrigger>
+                        <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
+                        <TabsTrigger value="completed">Completed</TabsTrigger>
+                        <TabsTrigger value="canceled">Canceled</TabsTrigger>
+                    </TabsList>
+                </Tabs>
 
-                {/* Bookings List */}
                 <div className="space-y-3">
-                    {filteredBookings?.length === 0 ? (
+                    {displayStatus === "LoadingFirstPage" && (
                         <div className="text-center py-8 bg-white dark:bg-zinc-900 rounded-lg">
                             <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                                No {selectedStatus !== "all" ? selectedStatus.replace(/_/g, " ") : ""} bookings
+                                Loading bookings...
                             </p>
                         </div>
-                    ) : (
-                        filteredBookings?.map((item) => (
-                            <BookingCard
-                                key={item.booking._id}
-                                booking={item.booking}
-                                toUser={item.toUser}
-                                fromUser={item.fromUser}
-                                currentUser={item.currentUser}
-                            />
-                        ))
+                    )}
+
+                    {displayResults?.length === 0 && displayStatus !== "LoadingFirstPage" && (
+                        <div className="text-center py-8 bg-white dark:bg-zinc-900 rounded-lg">
+                            <p className="text-zinc-600 dark:text-zinc-400 text-sm">
+                                No {statusFilter !== "all" ? statusFilter.replace(/_/g, " ") : ""} bookings
+                            </p>
+                        </div>
+                    )}
+
+                    {displayResults?.map((item: any) => (
+                        <BookingCard
+                            key={item.booking._id}
+                            booking={item.booking}
+                            toUser={item.toUser}
+                            fromUser={item.fromUser}
+                            currentUser={item.currentUser}
+                        />
+                    ))}
+
+                    {displayStatus === "CanLoadMore" && (
+                        <div className="flex justify-center pt-4">
+                            <Button
+                                onClick={() => loadMore(10)}
+                                variant="outline"
+                                size="lg"
+                            >
+                                Load More
+                            </Button>
+                        </div>
+                    )}
+
+                    {displayStatus === "LoadingMore" && (
+                        <div className="text-center py-4">
+                            <p className="text-zinc-600 dark:text-zinc-400 text-sm">
+                                Loading more...
+                            </p>
+                        </div>
                     )}
                 </div>
             </div>
@@ -76,7 +126,7 @@ export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
     );
 }
 
-function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnType<typeof api.schemas.bookings.getMyBookings>[0]) {
+function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUsers) {
     const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const acceptBooking = useMutation(api.schemas.bookings.acceptBooking);
@@ -96,22 +146,17 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
 
     const bookingDate = new Date(booking.timestamp);
 
-    // Handle null toUser
     if (!toUser) {
         return null;
     }
 
-    // Determine the other party (who the current user is chatting with)
     const isTutor = currentUser.role === "tutor";
     const otherParty = isTutor ? fromUser : toUser;
     const otherPartyName = otherParty.name || otherParty.email || "Unknown User";
 
-    // Check if current user was the last to act (for reschedule awaiting confirmation)
     const isAwaitingReschedule = booking.status === "awaiting_reschedule";
-
     const currentUserIsWaiting = isAwaitingReschedule && booking.lastActionByUserId === currentUser._id;
 
-    // Determine which buttons to show based on status
     const canAcceptReject = (booking.status === "pending" ||
         booking.status === "awaiting_reschedule") && !currentUserIsWaiting;
 
@@ -120,11 +165,7 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
         !currentUserIsWaiting;
 
     const canCancel = booking.status !== "completed" && booking.status !== "canceled";
-
-    // Everyone except tutors can pay when status is awaiting_payment
     const canPay = booking.status === "awaiting_payment" && currentUser.role !== "tutor";
-
-    // Can join video call when booking is confirmed
     const canJoinVideoCall = booking.status === "confirmed";
 
     const handleAccept = async () => {
@@ -165,10 +206,8 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
 
     return (
         <>
-            <div className="bg-white dark:bg-zinc-900 rounded-lg border-2 border-zinc-200 dark:border-zinc-800 overflow-hidden transition-shadow hover:shadow-lg">
-                {/* Main Content - Large and Clear */}
-                <div className="p-5">
-                    {/* Person Info with Status Badge */}
+            <Card className="overflow-hidden transition-shadow hover:shadow-lg border-2">
+                <CardHeader className="p-5">
                     <div className="flex items-center gap-4 mb-4">
                         {otherParty.image ? (
                             <img
@@ -191,19 +230,17 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
                                 {isTutor ? "Student" : "Tutor"}
                             </p>
                         </div>
-                        <span
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide whitespace-nowrap ${statusColors[booking.status] || statusColors.pending
-                                }`}
+                        <Badge
+                            className={statusColors[booking.status] || statusColors.pending}
                         >
                             {booking.status.replace(/_/g, " ")}
-                        </span>
+                        </Badge>
                     </div>
 
-                    {/* Date & Time - Compact inline layout */}
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
                         <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                                <span className="text-lg">📅</span>
+                                <span className="text-lg">��</span>
                                 <div>
                                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Date</p>
                                     <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -232,12 +269,12 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
                             </div>
                         </div>
                     </div>
+                </CardHeader>
 
-                    {/* Action Buttons - Large and Clear */}
-                    <div className="mt-4 flex flex-wrap gap-2">
+                <CardContent className="p-5 pt-0">
+                    <div className="flex flex-wrap gap-2">
                         {canJoinVideoCall && (
-                            <a
-                                href="javascript:void(0)"
+                            <Button
                                 onClick={async (e) => {
                                     e.preventDefault();
                                     try {
@@ -252,10 +289,10 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
                                         alert('Failed to join video call. Please try again.');
                                     }
                                 }}
-                                className="flex-1 min-w-[120px] px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-center cursor-pointer no-underline"
+                                className="flex-1 min-w-[120px]"
                             >
                                 🎥 Join Video Call
-                            </a>
+                            </Button>
                         )}
 
                         {canPay && (
@@ -268,50 +305,51 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
 
                         {canAcceptReject && (
                             <>
-                                <button
+                                <Button
                                     onClick={handleAccept}
-                                    className="flex-1 min-w-[120px] px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                                    className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700"
                                 >
                                     ✓ Accept
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     onClick={handleReject}
-                                    className="flex-1 min-w-[120px] px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                                    className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700"
                                 >
                                     ✗ Reject
-                                </button>
+                                </Button>
                             </>
                         )}
 
                         {canReschedule && (
-                            <button
+                            <Button
                                 onClick={() => setIsRescheduleOpen(true)}
-                                className="flex-1 min-w-[120px] px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                                className="flex-1 min-w-[120px]"
+                                variant="default"
                             >
                                 📅 Reschedule
-                            </button>
+                            </Button>
                         )}
 
                         {canCancel && (
-                            <button
+                            <Button
                                 onClick={handleCancel}
-                                className="flex-1 min-w-[120px] px-4 py-2 border-2 border-red-600 text-red-600 text-sm font-bold rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                className="flex-1 min-w-[120px]"
+                                variant="outline"
                             >
                                 🚫 Cancel
-                            </button>
+                            </Button>
                         )}
                     </div>
-                </div>
+                </CardContent>
 
-                {/* Chat Messages */}
                 <BookingChat
                     bookingId={booking._id}
                     currentUserId={currentUser._id}
                     otherPartyName={otherPartyName}
                 />
 
-                {/* Details Section - Collapsed by default */}
-                <div className="border-t border-zinc-200 dark:border-zinc-800">
+                <Separator />
+                <div>
                     <button
                         onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
                         className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
@@ -326,7 +364,6 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
 
                     {isHistoryExpanded && (
                         <div className="px-4 pb-4 space-y-4">
-                            {/* Booking ID */}
                             <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
                                 <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase mb-1">
                                     Booking Reference
@@ -346,13 +383,12 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
                                 </p>
                             </div>
 
-                            {/* Event History */}
                             <div>
                                 <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-2">
                                     Event History ({booking.events.length})
                                 </h4>
                                 <div className="space-y-2">
-                                    {booking.events.map((event, index) => (
+                                    {booking.events.map((event: any, index: number) => (
                                         <div
                                             key={index}
                                             className="flex items-start gap-3 text-sm p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
@@ -388,7 +424,7 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnT
                         </div>
                     )}
                 </div>
-            </div>
+            </Card>
 
             <RescheduleBookingForm
                 bookingId={booking._id}

@@ -1,6 +1,7 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query, internalQuery, internalMutation } from "../_generated/server";
+import { paginationOptsValidator } from "convex/server";
 import { getCurrentUserOrThrow, getUserByIdOrThrow } from "../model/users";
 import * as Bookings from "../model/bookings";
 
@@ -18,8 +19,12 @@ export const bookings = defineTable({
     videoCallStartedAt: v.optional(v.number()),
     videoCallEndedAt: v.optional(v.number()),
     videoCallDuration: v.optional(v.number()),
-}).index("fromUserId", ["fromUserId"])
-    .index("toUserId", ["toUserId"]);
+})
+    // Indexes for pagination with descending timestamp order
+    .index("by_fromUserId_timestamp", ["fromUserId", "timestamp"])
+    .index("by_toUserId_timestamp", ["toUserId", "timestamp"])
+    .index("by_fromUserId_status_timestamp", ["fromUserId", "status", "timestamp"])
+    .index("by_toUserId_status_timestamp", ["toUserId", "status", "timestamp"]);
 
 export const createBooking = mutation({
     args: {
@@ -37,10 +42,18 @@ export const createBooking = mutation({
     }
 })
 
-export const getMyBookings = query({
-    handler: async (ctx) => {
+export const getMyBookingsPaginated = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        status: v.optional(Bookings.bookingStatus),
+    },
+    handler: async (ctx, args) => {
         const currentUser = await getCurrentUserOrThrow(ctx);
-        return await Bookings.getUserBookings(ctx, currentUser._id);
+        return await Bookings.getUserBookingsPaginated(ctx, {
+            userId: currentUser._id,
+            paginationOpts: args.paginationOpts,
+            status: args.status,
+        });
     }
 })
 
