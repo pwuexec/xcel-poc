@@ -13,10 +13,6 @@ export default function TopRightNavbar({
     const currentUser = usePreloadedQuery(preloadedCurrentUser);
     const { signOut } = useAuthActions();
 
-    const handleSignOut = async () => {
-        await signOut();
-    };
-
     // Show Sign In link if no current user
     if (!currentUser) {
         return (
@@ -48,12 +44,13 @@ export default function TopRightNavbar({
             <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                 {currentUser.name || "User"}
             </span>
-            <button
-                onClick={handleSignOut}
+            <Link
+                href="/auth"
+                onClick={() => signOut()}
                 className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
             >
                 Sign Out
-            </button>
+            </Link>
         </div>
     );
 }
