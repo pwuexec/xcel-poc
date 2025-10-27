@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
-import { handleDailyRoomOptions, createDailyRoom } from "./daily";
+import { handleLessonspaceOptions, createLessonspaceSession } from "./lessonspace";
 import { handleStripeWebhook } from "./stripe";
 
 const http = httpRouter();
@@ -9,16 +9,16 @@ auth.addHttpRoutes(http);
 
 // CORS preflight
 http.route({
-    path: "/daily-room",
+    path: "/lessonspace-session",
     method: "OPTIONS",
-    handler: handleDailyRoomOptions,
+    handler: handleLessonspaceOptions,
 });
 
-// POST -> create Daily.co room
+// POST -> create Lessonspace session
 http.route({
-    path: "/daily-room",
+    path: "/lessonspace-session",
     method: "POST",
-    handler: createDailyRoom,
+    handler: createLessonspaceSession,
 });
 
 // Stripe webhook

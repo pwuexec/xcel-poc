@@ -7,7 +7,7 @@ import CreateBookingForm from "./components/CreateBookingForm";
 import RescheduleBookingForm from "./components/RescheduleBookingForm";
 import PaymentButton from "./components/PaymentButton";
 import BookingChat from "./components/BookingChat";
-import VideoCall from "./components/VideoCall";
+import { getVideoCallUrl } from "./components/VideoCall";
 import { FunctionReturnType } from "convex/server";
 import { Preloaded, usePreloadedQuery, useMutation } from "convex/react";
 import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
@@ -22,17 +22,10 @@ export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const videoCallBookingId = searchParams.get("videoCall");
-
     const filteredBookings = bookings?.filter((item) => {
         if (selectedStatus === "all") return true;
         return item.booking.status === selectedStatus;
     });
-
-    // Find the booking for the video call if one is active
-    const activeVideoCallBooking = videoCallBookingId
-        ? bookings?.find(item => item.booking._id === videoCallBookingId)
-        : null;
 
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -77,37 +70,16 @@ export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
                                 toUser={item.toUser}
                                 fromUser={item.fromUser}
                                 currentUser={item.currentUser}
-                                onOpenVideoCall={(bookingId) => {
-                                    const params = new URLSearchParams(searchParams);
-                                    params.set("videoCall", bookingId);
-                                    router.push(`?${params.toString()}`);
-                                }}
                             />
                         ))
                     )}
                 </div>
             </div>
-
-            {/* Video Call - Rendered at top level to prevent query loops */}
-            {activeVideoCallBooking && (
-                <VideoCall
-                    bookingId={activeVideoCallBooking.booking._id}
-                    userName={activeVideoCallBooking.currentUser.name || activeVideoCallBooking.currentUser.email || "User"}
-                    userId={activeVideoCallBooking.currentUser._id}
-                    onClose={() => {
-                        const params = new URLSearchParams(searchParams);
-                        params.delete("videoCall");
-                        router.push(`?${params.toString()}`);
-                    }}
-                />
-            )}
         </div>
     );
 }
 
-function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }: FunctionReturnType<typeof api.schemas.bookings.getMyBookings>[0] & {
-    onOpenVideoCall: (bookingId: string) => void;
-}) {
+function BookingCard({ booking, toUser, fromUser, currentUser }: FunctionReturnType<typeof api.schemas.bookings.getMyBookings>[0]) {
     const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const acceptBooking = useMutation(api.schemas.bookings.acceptBooking);
@@ -267,12 +239,26 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenVideoCall }
                     {/* Action Buttons - Large and Clear */}
                     <div className="mt-4 flex flex-wrap gap-2">
                         {canJoinVideoCall && (
-                            <button
-                                onClick={() => onOpenVideoCall(booking._id)}
-                                className="flex-1 min-w-[120px] px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                            <a
+                                href="javascript:void(0)"
+                                onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                        const url = await getVideoCallUrl({
+                                            bookingId: booking._id,
+                                            userName: currentUser.name || currentUser.email || "User",
+                                            userId: currentUser._id,
+                                            userEmail: currentUser.email || "",
+                                        });
+                                        window.open(url, '_blank', 'noopener,noreferrer');
+                                    } catch (error) {
+                                        alert('Failed to join video call. Please try again.');
+                                    }
+                                }}
+                                className="flex-1 min-w-[120px] px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-center cursor-pointer no-underline"
                             >
                                 🎥 Join Video Call
-                            </button>
+                            </a>
                         )}
 
                         {canPay && (

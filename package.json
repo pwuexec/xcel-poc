@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "run-p dev:backend dev:frontend dev:ws",
+    "dev": "run-p dev:backend dev:frontend",
     "dev:backend": "convex dev",
     "dev:frontend": "next dev",
-    "dev:ws": "tsx watch server/websocket-server.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -14,17 +13,13 @@
   "dependencies": {
     "@auth/core": "^0.37.0",
     "@convex-dev/auth": "^0.0.90",
-    "@daily-co/daily-js": "^0.85.0",
-    "@excalidraw/excalidraw": "^0.18.0",
     "@stripe/stripe-js": "^8.1.0",
-    "@types/ws": "^8.18.1",
     "convex": "^1.28.0",
     "convex-helpers": "^0.1.104",
     "next": "16.0.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "stripe": "^19.1.0",
-    "ws": "^8.18.3"
+    "stripe": "^19.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -35,7 +30,6 @@
     "eslint-config-next": "16.0.0",
     "npm-run-all2": "^8.0.4",
     "tailwindcss": "^4",
-    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }
