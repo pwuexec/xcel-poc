@@ -153,6 +153,18 @@ export const createBooking = mutation({
         const currentUser = await getCurrentUserOrThrow(ctx);
         const toUser = await getUserByIdOrThrow(ctx, args.toUserId);
 
+        // Validate that one user is a tutor and the other is a student
+        const currentUserIsTutor = isRole(currentUser, "tutor");
+        const toUserIsTutor = isRole(toUser, "tutor");
+
+        if (currentUserIsTutor && toUserIsTutor) {
+            throw new Error("Tutors cannot book sessions with other tutors");
+        }
+
+        if (!currentUserIsTutor && !toUserIsTutor) {
+            throw new Error("Students cannot book sessions with other students");
+        }
+
         const now = Date.now();
         const bookingId = await ctx.db.insert("bookings", {
             fromUserId: currentUser._id,

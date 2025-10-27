@@ -14,6 +14,12 @@ export default function CreateBookingForm() {
 
     const createBooking = useMutation(api.schemas.bookings.createBooking);
     const allUsers = useQuery(api.schemas.users.getAllUsers);
+    const currentUser = useQuery(api.schemas.users.getMe);
+
+    // Determine if current user is a tutor
+    const isTutor = currentUser?.role === "tutor";
+    const selectLabel = isTutor ? "Select Student" : "Select Tutor";
+    const selectPlaceholder = isTutor ? "Select a student..." : "Select a tutor...";
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,7 +47,8 @@ export default function CreateBookingForm() {
             alert("Booking created successfully!");
         } catch (error) {
             console.error("Failed to create booking:", error);
-            alert("Failed to create booking. Please try again.");
+            const errorMessage = error instanceof Error ? error.message : "Failed to create booking. Please try again.";
+            alert(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
@@ -77,7 +84,7 @@ export default function CreateBookingForm() {
                                     htmlFor="toUserId"
                                     className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
                                 >
-                                    Select Tutor
+                                    {selectLabel}
                                 </label>
                                 <select
                                     id="toUserId"
@@ -86,7 +93,7 @@ export default function CreateBookingForm() {
                                     className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
                                     required
                                 >
-                                    <option value="">Select a tutor...</option>
+                                    <option value="">{selectPlaceholder}</option>
                                     {allUsers?.map((user) => (
                                         <option key={user._id} value={user._id}>
                                             {user.name || user.email || "Unknown User"}
