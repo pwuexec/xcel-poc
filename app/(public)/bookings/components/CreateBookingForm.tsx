@@ -4,9 +4,22 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-export default function CreateBookingForm() {
-    const [isOpen, setIsOpen] = useState(false);
+interface CreateBookingFormProps {
+    onSuccess?: () => void;
+}
+
+export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps) {
     const [toUserId, setToUserId] = useState("");
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
@@ -43,7 +56,11 @@ export default function CreateBookingForm() {
             setToUserId("");
             setDate("");
             setTime("");
-            setIsOpen(false);
+
+            // Call onSuccess first to close dialog
+            onSuccess?.();
+
+            // Then show success message
             alert("Booking created successfully!");
         } catch (error) {
             console.error("Failed to create booking:", error);
@@ -55,108 +72,54 @@ export default function CreateBookingForm() {
     };
 
     return (
-        <>
-            <button
-                onClick={() => setIsOpen(true)}
-                className="px-6 py-3 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-                Create New Booking
-            </button>
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="toUserId">{selectLabel}</Label>
+                <Select value={toUserId} onValueChange={setToUserId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder={selectPlaceholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {allUsers?.map((user) => (
+                            <SelectItem key={user._id} value={user._id}>
+                                {user.name || user.email || "Unknown User"}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
 
-            {isOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-zinc-900 rounded-lg max-w-md w-full p-6 border border-zinc-200 dark:border-zinc-800">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                                Create Booking
-                            </h2>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-                            >
-                                ✕
-                            </button>
-                        </div>
+            <div className="space-y-2">
+                <Label htmlFor="date">Date (UK Time)</Label>
+                <Input
+                    id="date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                />
+            </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label
-                                    htmlFor="toUserId"
-                                    className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
-                                >
-                                    {selectLabel}
-                                </label>
-                                <select
-                                    id="toUserId"
-                                    value={toUserId}
-                                    onChange={(e) => setToUserId(e.target.value)}
-                                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-                                    required
-                                >
-                                    <option value="">{selectPlaceholder}</option>
-                                    {allUsers?.map((user) => (
-                                        <option key={user._id} value={user._id}>
-                                            {user.name || user.email || "Unknown User"}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+            <div className="space-y-2">
+                <Label htmlFor="time">Time (UK Time)</Label>
+                <Input
+                    id="time"
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    required
+                />
+            </div>
 
-                            <div>
-                                <label
-                                    htmlFor="date"
-                                    className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
-                                >
-                                    Date (UK Time)
-                                </label>
-                                <input
-                                    id="date"
-                                    type="date"
-                                    value={date}
-                                    onChange={(e) => setDate(e.target.value)}
-                                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    htmlFor="time"
-                                    className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2"
-                                >
-                                    Time (UK Time)
-                                </label>
-                                <input
-                                    id="time"
-                                    type="time"
-                                    value={time}
-                                    onChange={(e) => setTime(e.target.value)}
-                                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-                                    required
-                                />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsOpen(false)}
-                                    className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                                    disabled={isSubmitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? "Creating..." : "Create"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </>
+            <div className="flex gap-3 pt-4">
+                <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isSubmitting}
+                >
+                    {isSubmitting ? "Creating..." : "Create Booking"}
+                </Button>
+            </div>
+        </form>
     );
 }

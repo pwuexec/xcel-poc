@@ -1,7 +1,8 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import { useState } from "react";
+import { Id } from "@/convex/_generated/dataModel";
+import { useState, useEffect } from "react";
 import { Preloaded, usePaginatedQuery, usePreloadedQuery, useMutation } from "convex/react";
 import { useSearchParams } from "next/navigation";
 import { useSearchParamsState } from "@/hooks/useSearchParamsState";
@@ -17,6 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 type BookingWithUsers = FunctionReturnType<typeof api.schemas.bookings.getMyBookingsPaginated>["page"][0];
 
@@ -26,9 +34,13 @@ interface BookingsClientProps {
 }
 
 export function BookingsClient({ preloadedBookings, initialStatus }: BookingsClientProps) {
-    const { getParam } = useSearchParamsState();
+    const { getParam, setParam, setParams, removeParam, removeParams } = useSearchParamsState();
 
+    // URL-based state management for filters and dialogs
     const statusFilter = getParam("status") || initialStatus || "all";
+    const action = getParam("action"); // create | reschedule | payment
+    const bookingId = getParam("bookingId");
+
     const preloadedData = usePreloadedQuery(preloadedBookings);
 
     // Use paginated query for subsequent updates and pagination
@@ -43,33 +55,88 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
     const displayResults = (results && results.length >= 10) ? results : preloadedData.page;
     const displayStatus = (results && results.length >= 10) ? status : (preloadedData.isDone ? "Exhausted" : "CanLoadMore");
 
+    // Dialog open states - controlled by URL params
+    // This allows dialogs to be deep-linkable and work with browser back/forward
+    const isCreateDialogOpen = action === "create";
+    const isRescheduleDialogOpen = action === "reschedule" && !!bookingId;
+    const isPaymentDialogOpen = action === "payment" && !!bookingId;
+
+    /**
+     * Opens a dialog by setting URL params
+     * @param dialogAction - The type of dialog to open (create | reschedule | payment)
+     * @param id - Optional booking ID for actions on specific bookings
+     */
+    const handleOpenDialog = (dialogAction: string, id?: Id<"bookings"> | string) => {
+        // Always use setParams for consistent, performant single navigation
+        const params: Record<string, string> = { action: dialogAction };
+        if (id) {
+            params.bookingId = id as string;
+        }
+        setParams(params);
+    };
+
+    /**
+     * Closes any open dialog by removing URL params
+     * This is passed to all dialog components as their onClose handler
+     */
+    const handleCloseDialog = () => {
+        removeParams(["bookingId", "action"]);
+    };
+
+    // Find the selected booking for dialogs that need booking data
+    // bookingId from URL is a string, we compare with the string representation of booking._id
+    const selectedBooking = bookingId
+        ? displayResults?.find((item: any) => String(item.booking._id) === bookingId)
+        : null;
+
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
             <div className="mx-auto max-w-5xl px-4 py-8">
-                <div className="mb-8 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                        Bookings
-                    </h1>
-                    <CreateBookingForm />
+                {/* Header */}
+                <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+                            My Bookings
+                        </h1>
+                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                            Manage your tutoring sessions
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => handleOpenDialog("create")}
+                        size="lg"
+                        className="w-full sm:w-auto"
+                    >
+                        ➕ Create New Booking
+                    </Button>
                 </div>
 
+                {/* Filter */}
                 <div className="mb-6">
                     <BookingStatusFilter />
                 </div>
 
-                <div className="space-y-3">
+                {/* Bookings List */}
+                <div className="space-y-4">
                     {displayStatus === "LoadingFirstPage" && (
-                        <div className="text-center py-8 bg-white dark:bg-zinc-900 rounded-lg">
-                            <p className="text-zinc-600 dark:text-zinc-400 text-sm">
+                        <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100 mb-4"></div>
+                            <p className="text-zinc-600 dark:text-zinc-400 font-medium">
                                 Loading bookings...
                             </p>
                         </div>
                     )}
 
                     {displayResults?.length === 0 && displayStatus !== "LoadingFirstPage" && (
-                        <div className="text-center py-8 bg-white dark:bg-zinc-900 rounded-lg">
+                        <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+                            <div className="text-4xl mb-4">📅</div>
+                            <p className="text-zinc-900 dark:text-zinc-100 font-semibold mb-2">
+                                No bookings found
+                            </p>
                             <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                                No {statusFilter !== "all" ? statusFilter.replace(/_/g, " ") : ""} bookings
+                                {statusFilter !== "all"
+                                    ? `No ${statusFilter.replace(/_/g, " ")} bookings at the moment`
+                                    : "You don't have any bookings yet. Create one to get started!"}
                             </p>
                         </div>
                     )}
@@ -81,36 +148,64 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
                             toUser={item.toUser}
                             fromUser={item.fromUser}
                             currentUser={item.currentUser}
+                            onOpenDialog={handleOpenDialog}
                         />
                     ))}
 
                     {displayStatus === "CanLoadMore" && (
-                        <div className="flex justify-center pt-4">
+                        <div className="flex justify-center pt-6">
                             <Button
                                 onClick={() => loadMore(10)}
                                 variant="outline"
                                 size="lg"
+                                className="min-w-[200px]"
                             >
-                                Load More
+                                Load More Bookings
                             </Button>
                         </div>
                     )}
 
                     {displayStatus === "LoadingMore" && (
                         <div className="text-center py-4">
-                            <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                                Loading more...
-                            </p>
+                            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-900 dark:border-zinc-100"></div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Dialogs - Each with clear purpose and close behavior */}
+            <CreateBookingDialog
+                isOpen={isCreateDialogOpen}
+                onClose={handleCloseDialog}
+            />
+
+            {selectedBooking && (
+                <>
+                    <RescheduleBookingDialog
+                        isOpen={isRescheduleDialogOpen}
+                        onClose={handleCloseDialog}
+                        bookingId={selectedBooking.booking._id}
+                        currentTimestamp={selectedBooking.booking.timestamp}
+                    />
+
+                    <PaymentBookingDialog
+                        isOpen={isPaymentDialogOpen}
+                        onClose={handleCloseDialog}
+                        bookingId={selectedBooking.booking._id}
+                        customerEmail={selectedBooking.currentUser.email || ""}
+                        customerName={selectedBooking.currentUser.name}
+                    />
+                </>
+            )}
         </div>
     );
 }
 
-function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUsers) {
-    const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+interface BookingCardProps extends BookingWithUsers {
+    onOpenDialog: (action: string, bookingId?: string) => void;
+}
+
+function BookingCard({ booking, toUser, fromUser, currentUser, onOpenDialog }: BookingCardProps) {
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const acceptBooking = useMutation(api.schemas.bookings.acceptBooking);
     const rejectBooking = useMutation(api.schemas.bookings.rejectBooking);
@@ -279,11 +374,13 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUser
                         )}
 
                         {canPay && (
-                            <PaymentButton
-                                bookingId={booking._id}
-                                customerName={currentUser.name || undefined}
-                                customerEmail={currentUser.email!}
-                            />
+                            <Button
+                                onClick={() => onOpenDialog("payment", booking._id)}
+                                className="flex-1 min-w-[120px]"
+                                variant="default"
+                            >
+                                💳 Pay Now
+                            </Button>
                         )}
 
                         {canAcceptReject && (
@@ -305,7 +402,7 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUser
 
                         {canReschedule && (
                             <Button
-                                onClick={() => setIsRescheduleOpen(true)}
+                                onClick={() => onOpenDialog("reschedule", booking._id)}
                                 className="flex-1 min-w-[120px]"
                                 variant="default"
                             >
@@ -325,6 +422,9 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUser
                     </div>
                 </CardContent>
 
+                <Separator />
+
+                {/* Chat Section - BookingChat has its own expand/collapse */}
                 <BookingChat
                     bookingId={booking._id}
                     currentUserId={currentUser._id}
@@ -332,6 +432,8 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUser
                 />
 
                 <Separator />
+
+                {/* Details & History Section */}
                 <div>
                     <button
                         onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
@@ -408,13 +510,115 @@ function BookingCard({ booking, toUser, fromUser, currentUser }: BookingWithUser
                     )}
                 </div>
             </Card>
-
-            <RescheduleBookingForm
-                bookingId={booking._id}
-                currentTimestamp={booking.timestamp}
-                isOpen={isRescheduleOpen}
-                onClose={() => setIsRescheduleOpen(false)}
-            />
         </>
+    );
+}
+
+// ==================== Dialog Components ====================
+// Each dialog component:
+// - Has a clear, single purpose
+// - Accepts isOpen and onClose props for consistent behavior
+// - Calls onClose when user clicks outside, presses ESC, or completes action
+// - Is properly typed with Convex ID types
+// Note: Chat is now embedded directly in the booking card for better UX
+
+interface CreateBookingDialogProps {
+    isOpen: boolean;
+    onClose: () => void; // Removes action & bookingId params from URL
+}
+
+/**
+ * Dialog for creating a new booking
+ * onClose: Called when dialog is dismissed or booking is successfully created
+ */
+function CreateBookingDialog({ isOpen, onClose }: CreateBookingDialogProps) {
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Create New Booking</DialogTitle>
+                    <DialogDescription>
+                        Schedule a new tutoring session
+                    </DialogDescription>
+                </DialogHeader>
+                <CreateBookingForm onSuccess={onClose} />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+interface RescheduleBookingDialogProps {
+    isOpen: boolean;
+    onClose: () => void; // Removes action & bookingId params from URL
+    bookingId: Id<"bookings">;
+    currentTimestamp: number;
+}
+
+/**
+ * Dialog for rescheduling an existing booking
+ * onClose: Called when dialog is dismissed or reschedule is successfully submitted
+ */
+function RescheduleBookingDialog({
+    isOpen,
+    onClose,
+    bookingId,
+    currentTimestamp
+}: RescheduleBookingDialogProps) {
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Reschedule Booking</DialogTitle>
+                    <DialogDescription>
+                        Request a new time for this booking
+                    </DialogDescription>
+                </DialogHeader>
+                <RescheduleBookingForm
+                    bookingId={bookingId}
+                    currentTimestamp={currentTimestamp}
+                    onSuccess={onClose}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+interface PaymentBookingDialogProps {
+    isOpen: boolean;
+    onClose: () => void; // Removes action & bookingId params from URL
+    bookingId: Id<"bookings">;
+    customerEmail: string;
+    customerName?: string;
+}
+
+/**
+ * Dialog for making payment on a booking
+ * onClose: Called when dialog is dismissed or payment is initiated
+ */
+function PaymentBookingDialog({
+    isOpen,
+    onClose,
+    bookingId,
+    customerEmail,
+    customerName
+}: PaymentBookingDialogProps) {
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Complete Payment</DialogTitle>
+                    <DialogDescription>
+                        Pay for this tutoring session
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <PaymentButton
+                        bookingId={bookingId}
+                        customerEmail={customerEmail}
+                        customerName={customerName}
+                    />
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
