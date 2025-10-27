@@ -2,7 +2,6 @@
 
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import CreateBookingForm from "./components/CreateBookingForm";
 import RescheduleBookingForm from "./components/RescheduleBookingForm";
 import PaymentButton from "./components/PaymentButton";
@@ -19,8 +18,6 @@ interface BookingsClientProps {
 export function BookingsClient({ preloadedBookings }: BookingsClientProps) {
     const bookings = usePreloadedQuery(preloadedBookings);
     const [selectedStatus, setSelectedStatus] = useState<string>("all");
-    const router = useRouter();
-    const searchParams = useSearchParams();
 
     const filteredBookings = bookings?.filter((item) => {
         if (selectedStatus === "all") return true;
