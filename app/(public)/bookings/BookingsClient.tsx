@@ -9,10 +9,10 @@ import CreateBookingForm from "./components/CreateBookingForm";
 import RescheduleBookingForm from "./components/RescheduleBookingForm";
 import PaymentButton from "./components/PaymentButton";
 import BookingChat from "./components/BookingChat";
+import { BookingStatusFilter } from "./components/BookingStatusFilter";
 import { getVideoCallUrl } from "./components/VideoCall";
 import { FunctionReturnType } from "convex/server";
 import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +26,9 @@ interface BookingsClientProps {
 }
 
 export function BookingsClient({ preloadedBookings, initialStatus }: BookingsClientProps) {
-    const searchParams = useSearchParams();
-    const { setParam, removeParam } = useSearchParamsState();
-    const statusFilter = searchParams.get("status") || initialStatus || "all";
+    const { getParam } = useSearchParamsState();
 
-    // Use the preloaded query result for initial render
+    const statusFilter = getParam("status") || initialStatus || "all";
     const preloadedData = usePreloadedQuery(preloadedBookings);
 
     // Use paginated query for subsequent updates and pagination
@@ -45,14 +43,6 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
     const displayResults = (results && results.length >= 10) ? results : preloadedData.page;
     const displayStatus = (results && results.length >= 10) ? status : (preloadedData.isDone ? "Exhausted" : "CanLoadMore");
 
-    const handleStatusChange = (value: string) => {
-        if (value === "all") {
-            removeParam("status");
-        } else {
-            setParam("status", value);
-        }
-    };
-
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
             <div className="mx-auto max-w-5xl px-4 py-8">
@@ -63,16 +53,9 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
                     <CreateBookingForm />
                 </div>
 
-                <Tabs value={statusFilter} onValueChange={handleStatusChange} className="mb-6">
-                    <TabsList>
-                        <TabsTrigger value="all">All</TabsTrigger>
-                        <TabsTrigger value="pending">Pending</TabsTrigger>
-                        <TabsTrigger value="awaiting_payment">Awaiting Payment</TabsTrigger>
-                        <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
-                        <TabsTrigger value="completed">Completed</TabsTrigger>
-                        <TabsTrigger value="canceled">Canceled</TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <div className="mb-6">
+                    <BookingStatusFilter />
+                </div>
 
                 <div className="space-y-3">
                     {displayStatus === "LoadingFirstPage" && (
