@@ -12,8 +12,17 @@ import {
 } from "@/components/ui/input-group";
 import { Sparkles, MessageSquare, Send } from "lucide-react";
 import Footer from "./_components/Footer";
+import { preloadQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import DynamicSignInLink from "./_components/DynamicSignInButton";
 
-export default function Home() {
+export default async function Home() {
+    const preloadedCurrentUser = await preloadQuery(
+        api.schemas.users.getMe,
+        {},
+        { token: await convexAuthNextjsToken() })
+
     return (
         <div className="min-h-screen bg-gradient-to-b from-white to-neutral-50 dark:from-neutral-950 dark:to-neutral-900">
             {/* Hero Section */}
@@ -36,7 +45,7 @@ export default function Home() {
                             <Link href="/bookings">Join the Beta</Link>
                         </Button>
                         <Button size="lg" variant="outline" asChild className="text-lg px-8">
-                            <Link href="/auth">Sign In</Link>
+                            <DynamicSignInLink preloadedCurrentUser={preloadedCurrentUser} />
                         </Button>
                     </div>
                 </div>

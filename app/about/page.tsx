@@ -4,9 +4,9 @@ import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
-import { Linkedin } from "lucide-react";
 import type { Metadata } from "next";
 import Footer from "../_components/Footer";
+import LinkedinIcon from "@/components/icons/LinkedinIcon";
 
 export const metadata: Metadata = {
     title: "About",
@@ -59,7 +59,7 @@ export default function AboutPage() {
                                         rel="noopener noreferrer"
                                         className="text-muted-foreground hover:text-primary transition-colors"
                                     >
-                                        <Linkedin className="size-5" />
+                                        <LinkedinIcon className="size-5" />
                                     </Link>
                                 </div>
                                 <p className="text-base text-muted-foreground font-medium">CEO & Co‑Founder</p>
@@ -84,7 +84,7 @@ export default function AboutPage() {
                                         rel="noopener noreferrer"
                                         className="text-muted-foreground hover:text-primary transition-colors"
                                     >
-                                        <Linkedin className="size-5" />
+                                        <LinkedinIcon className="size-5" />
                                     </Link>
                                 </div>
                                 <p className="text-base text-muted-foreground font-medium">CTO & Co‑Founder</p>
@@ -115,10 +115,10 @@ export default function AboutPage() {
                                         rel="noopener noreferrer"
                                         className="text-muted-foreground hover:text-primary transition-colors"
                                     >
-                                        <Linkedin className="size-5" />
+                                        <LinkedinIcon className="size-5" />
                                     </Link>
                                 </div>
-                                <p className="text-base text-muted-foreground font-medium">Business Manager</p>
+                                <p className="text-base text-muted-foreground font-medium">Business Analyst</p>
                                 <p className="text-base text-muted-foreground">
                                     Noah's background in innovative business IT drives XcelTutor's expansion strategy. He is focused on building partnerships and refining their marketing approach to reach students who can benefit most from their platform
                                 </p>
