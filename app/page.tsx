@@ -44,7 +44,7 @@ export default async function Home() {
                         <Button size="lg" asChild className="text-lg px-8">
                             <Link href="/bookings">Join the Beta</Link>
                         </Button>
-                        <Button size="lg" variant="outline" asChild className="text-lg px-8">
+                        <Button size="lg" asChild className="text-lg px-8">
                             <DynamicSignInLink preloadedCurrentUser={preloadedCurrentUser} />
                         </Button>
                     </div>

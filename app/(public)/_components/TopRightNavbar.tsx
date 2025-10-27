@@ -3,7 +3,6 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Preloaded, usePreloadedQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function TopRightNavbar({
@@ -13,11 +12,9 @@ export default function TopRightNavbar({
 }) {
     const currentUser = usePreloadedQuery(preloadedCurrentUser);
     const { signOut } = useAuthActions();
-    const router = useRouter();
 
     const handleSignOut = async () => {
         await signOut();
-        router.push("/");
     };
 
     // Show Sign In link if no current user
