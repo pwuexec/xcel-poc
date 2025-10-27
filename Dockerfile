@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Next.js with Convex
 
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -21,11 +21,19 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Build Next.js application
+# Deploy Convex functions to production
+# This requires CONVEX_DEPLOY_KEY to be set as a build argument
+ARG CONVEX_DEPLOY_KEY
+ENV CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY
+
+# Deploy Convex backend (this generates the _generated files)
+RUN npx convex deploy --cmd-url-env-var-name CONVEX_URL
+
+# Build Next.js application (now with generated Convex files)
 RUN npm run build
 
 # Stage 3: Runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
