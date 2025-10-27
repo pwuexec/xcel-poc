@@ -10,9 +10,6 @@ services:
       # Add your Convex deployment URL
       - CONVEX_URL=${CONVEX_URL}
       - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-      # Add other environment variables as needed
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
     env_file:
       - .env.production
     restart: unless-stopped

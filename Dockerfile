@@ -21,10 +21,15 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Deploy Convex functions to production
-# This requires CONVEX_DEPLOY_KEY to be set as a build argument
+# Accept build arguments from Dokploy
 ARG CONVEX_DEPLOY_KEY
+ARG CONVEX_URL
+ARG NEXT_PUBLIC_CONVEX_URL
+
+# Set environment variables for build (CRITICAL for NEXT_PUBLIC_* vars)
 ENV CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY
+ENV CONVEX_URL=$CONVEX_URL
+ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 
 # Deploy Convex backend (this generates the _generated files)
 RUN npx convex deploy --cmd-url-env-var-name CONVEX_URL
