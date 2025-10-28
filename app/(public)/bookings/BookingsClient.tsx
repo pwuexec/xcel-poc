@@ -2,22 +2,24 @@
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useState, useEffect } from "react";
-import { Preloaded, usePaginatedQuery, usePreloadedQuery, useMutation } from "convex/react";
-import { useSearchParams } from "next/navigation";
+import { ACTIVE_STATUSES, PAST_STATUSES } from "@/convex/constants/bookingStatuses";
+import { useState } from "react";
+import { usePaginatedQuery, useMutation, useQuery } from "convex/react";
 import { useSearchParamsState } from "@/hooks/useSearchParamsState";
 import CreateBookingForm from "./components/CreateBookingForm";
 import RescheduleBookingForm from "./components/RescheduleBookingForm";
 import PaymentButton from "./components/PaymentButton";
 import BookingChat from "./components/BookingChat";
-import { BookingStatusFilter } from "./components/BookingStatusFilter";
 import { getVideoCallUrl } from "./components/VideoCall";
 import { FunctionReturnType } from "convex/server";
 import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
     Dialog,
     DialogContent,
@@ -25,49 +27,48 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    CalendarIcon,
+    ClockIcon,
+    VideoIcon,
+    CreditCardIcon,
+    CheckIcon,
+    XIcon,
+    CalendarClockIcon,
+    BanIcon,
+    PlusIcon,
+    ChevronDownIcon,
+    ChevronUpIcon,
+    InfoIcon,
+} from "lucide-react";
 
 type BookingWithUsers = FunctionReturnType<typeof api.schemas.bookings.getMyBookingsPaginated>["page"][0];
 
 interface BookingsClientProps {
-    preloadedBookings: Preloaded<typeof api.schemas.bookings.getMyBookingsPaginated>;
     initialStatus?: string;
 }
 
-export function BookingsClient({ preloadedBookings, initialStatus }: BookingsClientProps) {
+export function BookingsClient({ initialStatus }: BookingsClientProps) {
     const { getParam, setParam, setParams, removeParam, removeParams } = useSearchParamsState();
 
-    // URL-based state management for filters and dialogs
-    const statusFilter = getParam("status") || initialStatus || "all";
-    const action = getParam("action"); // create | reschedule | payment
+    const statusFilter = getParam("status") || initialStatus || "active";
+    const action = getParam("action");
     const bookingId = getParam("bookingId");
 
-    const preloadedData = usePreloadedQuery(preloadedBookings);
+    // Map tab to status array from Convex
+    const statusesToFetch = statusFilter === "past" ? [...PAST_STATUSES] : [...ACTIVE_STATUSES];
 
-    // Use paginated query for subsequent updates and pagination
     const { results, status, loadMore } = usePaginatedQuery(
         api.schemas.bookings.getMyBookingsPaginated,
-        statusFilter === "all" ? {} : { status: statusFilter as any },
+        { statuses: statusesToFetch },
         { initialNumItems: 10 }
     );
 
-    // Use preloaded data until paginated query has loaded at least 10 items
-    // This prevents unnecessary re-renders and maintains SSR benefits
-    const displayResults = (results && results.length >= 10) ? results : preloadedData.page;
-    const displayStatus = (results && results.length >= 10) ? status : (preloadedData.isDone ? "Exhausted" : "CanLoadMore");
-
-    // Dialog open states - controlled by URL params
-    // This allows dialogs to be deep-linkable and work with browser back/forward
     const isCreateDialogOpen = action === "create";
     const isRescheduleDialogOpen = action === "reschedule" && !!bookingId;
     const isPaymentDialogOpen = action === "payment" && !!bookingId;
 
-    /**
-     * Opens a dialog by setting URL params
-     * @param dialogAction - The type of dialog to open (create | reschedule | payment)
-     * @param id - Optional booking ID for actions on specific bookings
-     */
     const handleOpenDialog = (dialogAction: string, id?: Id<"bookings"> | string) => {
-        // Always use setParams for consistent, performant single navigation
         const params: Record<string, string> = { action: dialogAction };
         if (id) {
             params.bookingId = id as string;
@@ -75,105 +76,219 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
         setParams(params);
     };
 
-    /**
-     * Closes any open dialog by removing URL params
-     * This is passed to all dialog components as their onClose handler
-     */
     const handleCloseDialog = () => {
         removeParams(["bookingId", "action"]);
     };
 
-    // Find the selected booking for dialogs that need booking data
-    // bookingId from URL is a string, we compare with the string representation of booking._id
     const selectedBooking = bookingId
-        ? displayResults?.find((item: any) => String(item.booking._id) === bookingId)
+        ? results?.find((item: any) => String(item.booking._id) === bookingId)
         : null;
 
-    return (
-        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-            <div className="mx-auto max-w-5xl px-4 py-8">
-                {/* Header */}
-                <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-                            My Bookings
-                        </h1>
-                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                            Manage your tutoring sessions
-                        </p>
-                    </div>
-                    <Button
-                        onClick={() => handleOpenDialog("create")}
-                        size="lg"
-                        className="w-full sm:w-auto"
-                    >
-                        ➕ Create New Booking
-                    </Button>
-                </div>
+    // Use Convex query for counts instead of client-side filtering
+    const statusCounts = useQuery(api.schemas.bookings.getMyBookingsCounts) || {
+        active: 0,
+        past: 0,
+        pending: 0,
+    };
 
-                {/* Filter */}
-                <div className="mb-6">
-                    <BookingStatusFilter />
+    const handleTabChange = (value: string) => {
+        setParam("status", value);
+    };
+
+    // Group bookings by date
+    const now = new Date();
+    const ukNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const ukToday = new Date(ukNow.getFullYear(), ukNow.getMonth(), ukNow.getDate());
+
+    let groupedBookings: { label: string; bookings: any[] }[] = [];
+    if (results) {
+        const groups: { label: string; bookings: any[] }[] = [];
+        
+        results.forEach((item: any) => {
+            // Convert booking timestamp to UK timezone
+            const bookingUTC = new Date(item.booking.timestamp);
+            const bookingUK = new Date(bookingUTC.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+            const bookingDate = new Date(bookingUK.getFullYear(), bookingUK.getMonth(), bookingUK.getDate());
+            
+            const diffTime = bookingDate.getTime() - ukToday.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            let label: string;
+            
+            if (diffDays === 0) {
+                label = "Today";
+            } else if (diffDays === 1) {
+                label = "Tomorrow";
+            } else if (diffDays === -1) {
+                label = "Yesterday";
+            } else if (diffDays === 2) {
+                label = "In 2 days";
+            } else if (diffDays > 2 && diffDays < 7) {
+                label = `In ${diffDays} days`;
+            } else if (diffDays >= 7 && diffDays < 14) {
+                const weeks = Math.floor(diffDays / 7);
+                const remainingDays = diffDays % 7;
+                if (remainingDays === 0) {
+                    label = `In ${weeks} week${weeks > 1 ? 's' : ''}`;
+                } else {
+                    label = `In ${weeks} week and ${remainingDays} day${remainingDays > 1 ? 's' : ''}`;
+                }
+            } else if (diffDays >= 14) {
+                label = bookingDate.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "long",
+                    timeZone: "Europe/London",
+                });
+            } else if (diffDays < -1 && diffDays > -7) {
+                label = `${Math.abs(diffDays)} days ago`;
+            } else if (diffDays <= -7) {
+                label = bookingDate.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "long",
+                    timeZone: "Europe/London",
+                });
+            } else {
+                label = bookingDate.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "long",
+                    timeZone: "Europe/London",
+                });
+            }
+
+            const existingGroup = groups.find(g => g.label === label);
+            if (existingGroup) {
+                existingGroup.bookings.push(item);
+            } else {
+                groups.push({ label, bookings: [item] });
+            }
+        });
+
+        // Sort groups by the first booking's date in each group
+        groups.sort((a, b) => {
+            const aTime = a.bookings[0]?.booking.timestamp || 0;
+            const bTime = b.bookings[0]?.booking.timestamp || 0;
+            return aTime - bTime;
+        });
+
+        groupedBookings = groups;
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950">
+            <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+                {/* Header */}
+                <div className="mb-8">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div>
+                            <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+                                My Sessions
+                            </h1>
+                            <p className="text-base text-zinc-600 dark:text-zinc-400">
+                                Book, manage, and attend your tutoring sessions
+                            </p>
+                        </div>
+                        <Button
+                            onClick={() => handleOpenDialog("create")}
+                            size="lg"
+                            className="gap-2 shadow-lg hover:shadow-xl transition-shadow"
+                        >
+                            <PlusIcon className="size-5" />
+                            Book a Session
+                        </Button>
+                    </div>
+
+                    {/* Tabs Filter */}
+                    <Tabs value={statusFilter} onValueChange={handleTabChange} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 h-auto p-1">
+                            <TabsTrigger value="active" className="gap-2 py-2.5">
+                                <span>Active</span>
+                                {statusCounts.active > 0 && (
+                                    <Badge variant="secondary" className="ml-1 px-1.5 py-0">
+                                        {statusCounts.active}
+                                    </Badge>
+                                )}
+                            </TabsTrigger>
+                            <TabsTrigger value="past" className="gap-2 py-2.5">
+                                <span>Past</span>
+                                {statusCounts.past > 0 && (
+                                    <Badge variant="secondary" className="ml-1 px-1.5 py-0">
+                                        {statusCounts.past}
+                                    </Badge>
+                                )}
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+
+                    {/* Pending Bookings Alert */}
+                    {statusCounts.pending > 0 && statusFilter !== "past" && (
+                        <Alert className="mt-3 py-2 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
+                            <InfoIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+                            <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
+                                You have <strong>{statusCounts.pending}</strong> booking{statusCounts.pending > 1 ? 's' : ''} pending confirmation
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </div>
 
                 {/* Bookings List */}
-                <div className="space-y-4">
-                    {displayStatus === "LoadingFirstPage" && (
-                        <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100 mb-4"></div>
-                            <p className="text-zinc-600 dark:text-zinc-400 font-medium">
-                                Loading bookings...
-                            </p>
-                        </div>
+                <div className="space-y-6">
+                    {status === "LoadingFirstPage" && (
+                        <>
+                            {[...Array(3)].map((_, i) => (
+                                <BookingCardSkeleton key={i} />
+                            ))}
+                        </>
                     )}
 
-                    {displayResults?.length === 0 && displayStatus !== "LoadingFirstPage" && (
-                        <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-lg border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                            <div className="text-4xl mb-4">📅</div>
-                            <p className="text-zinc-900 dark:text-zinc-100 font-semibold mb-2">
-                                No bookings found
-                            </p>
-                            <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                                {statusFilter !== "all"
-                                    ? `No ${statusFilter.replace(/_/g, " ")} bookings at the moment`
-                                    : "You don't have any bookings yet. Create one to get started!"}
-                            </p>
-                        </div>
+                    {results?.length === 0 && status !== "LoadingFirstPage" && (
+                        <EmptyState statusFilter={statusFilter} onCreateBooking={() => handleOpenDialog("create")} />
                     )}
 
-                    {displayResults?.map((item: any) => (
-                        <BookingCard
-                            key={item.booking._id}
-                            booking={item.booking}
-                            toUser={item.toUser}
-                            fromUser={item.fromUser}
-                            currentUser={item.currentUser}
-                            onOpenDialog={handleOpenDialog}
-                        />
+                    {groupedBookings.map((group, groupIndex) => (
+                        <div key={groupIndex} className="space-y-3">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                                    {group.label}
+                                </h2>
+                                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+                            </div>
+                            <div className="space-y-4">
+                                {group.bookings.map((item: any) => (
+                                    <BookingCard
+                                        key={item.booking._id}
+                                        booking={item.booking}
+                                        toUser={item.toUser}
+                                        fromUser={item.fromUser}
+                                        currentUser={item.currentUser}
+                                        unreadCount={item.unreadCount}
+                                        onOpenDialog={handleOpenDialog}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     ))}
 
-                    {displayStatus === "CanLoadMore" && (
+                    {status === "CanLoadMore" && (
                         <div className="flex justify-center pt-6">
                             <Button
                                 onClick={() => loadMore(10)}
                                 variant="outline"
                                 size="lg"
-                                className="min-w-[200px]"
                             >
-                                Load More Bookings
+                                Load More
                             </Button>
                         </div>
                     )}
 
-                    {displayStatus === "LoadingMore" && (
-                        <div className="text-center py-4">
-                            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-900 dark:border-zinc-100"></div>
+                    {status === "LoadingMore" && (
+                        <div className="text-center py-8">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100"></div>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Dialogs - Each with clear purpose and close behavior */}
+            {/* Dialogs */}
             <CreateBookingDialog
                 isOpen={isCreateDialogOpen}
                 onClose={handleCloseDialog}
@@ -201,294 +316,373 @@ export function BookingsClient({ preloadedBookings, initialStatus }: BookingsCli
     );
 }
 
+// ==================== Empty State ====================
+
+interface EmptyStateProps {
+    statusFilter: string;
+    onCreateBooking: () => void;
+}
+
+function EmptyState({ statusFilter, onCreateBooking }: EmptyStateProps) {
+    const getEmptyStateContent = () => {
+        switch (statusFilter) {
+            case "active":
+                return {
+                    icon: "📅",
+                    title: "No active sessions",
+                    description: "You don't have any sessions scheduled or pending confirmation.",
+                };
+            case "past":
+                return {
+                    icon: "📚",
+                    title: "No past sessions",
+                    description: "Your completed sessions will appear here.",
+                };
+            default:
+                return {
+                    icon: "🎓",
+                    title: "Start your learning journey",
+                    description: "Book your first tutoring session to get started!",
+                };
+        }
+    };
+
+    const content = getEmptyStateContent();
+
+    return (
+        <Card className="border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="text-6xl mb-4">{content.icon}</div>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+                    {content.title}
+                </h3>
+                <p className="text-zinc-600 dark:text-zinc-400 mb-6 max-w-sm">
+                    {content.description}
+                </p>
+                <Button onClick={onCreateBooking} size="lg" className="gap-2">
+                    <PlusIcon className="size-5" />
+                    Book a Session
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+// ==================== Booking Card ====================
+
 interface BookingCardProps extends BookingWithUsers {
+    unreadCount: number;
     onOpenDialog: (action: string, bookingId?: string) => void;
 }
 
-function BookingCard({ booking, toUser, fromUser, currentUser, onOpenDialog }: BookingCardProps) {
-    const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+function BookingCard({ booking, toUser, fromUser, currentUser, unreadCount, onOpenDialog }: BookingCardProps) {
+    const [isExpanded, setIsExpanded] = useState(false);
     const acceptBooking = useMutation(api.schemas.bookings.acceptBooking);
     const rejectBooking = useMutation(api.schemas.bookings.rejectBooking);
     const cancelBooking = useMutation(api.schemas.bookings.cancelBooking);
 
-    const statusColors: Record<string, string> = {
-        pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-        awaiting_payment: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-        processing_payment: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-        confirmed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-        canceled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-        completed: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-        rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-        awaiting_reschedule: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-    };
-
-    const bookingDate = new Date(booking.timestamp);
-
-    if (!toUser) {
-        return null;
-    }
-
     const isTutor = currentUser.role === "tutor";
     const otherParty = isTutor ? fromUser : toUser;
-    const otherPartyName = otherParty.name || otherParty.email || "Unknown User";
+    const otherPartyName = otherParty?.name || otherParty?.email || "Unknown User";
+    const bookingDate = new Date(booking.timestamp);
 
-    const isAwaitingReschedule = booking.status === "awaiting_reschedule";
-    const currentUserIsWaiting = isAwaitingReschedule && booking.lastActionByUserId === currentUser._id;
+    if (!toUser) return null;
 
-    const canAcceptReject = (booking.status === "pending" ||
-        booking.status === "awaiting_reschedule") && !currentUserIsWaiting;
+    // Check if booking has been paid
+    const paymentSucceededEvent = booking.events.find((e: any) => e.type === "payment_succeeded");
+    const isPaid = !!paymentSucceededEvent;
+    const isPendingPayment = booking.status === "awaiting_payment" || booking.status === "processing_payment";
 
-    const canReschedule = booking.status !== "completed" &&
-        booking.status !== "canceled" &&
-        !currentUserIsWaiting;
-
-    const canCancel = booking.status !== "completed" && booking.status !== "canceled";
-    const canPay = booking.status === "awaiting_payment" && currentUser.role !== "tutor";
+    const currentUserMadeLastAction = booking.lastActionByUserId === currentUser._id;
+    const canAcceptReject = (booking.status === "pending" || booking.status === "awaiting_reschedule") && !currentUserMadeLastAction;
+    
+    // Can reschedule UNLESS it's completed, canceled, or rejected
+    const canReschedule = booking.status !== "completed" && booking.status !== "canceled" && booking.status !== "rejected";
+    
+    const canCancel = booking.status !== "completed" && booking.status !== "canceled" && booking.status !== "rejected";
+    
+    // Show pay button if awaiting_payment AND not a tutor AND not already paid AND booking is paid type
+    const canPay = booking.status === "awaiting_payment" && currentUser.role !== "tutor" && !isPaid && booking.bookingType === "paid";
+    
     const canJoinVideoCall = booking.status === "confirmed";
 
-    const handleAccept = async () => {
-        try {
-            await acceptBooking({ bookingId: booking._id });
-            alert("Booking accepted successfully!");
-        } catch (error) {
-            console.error("Failed to accept booking:", error);
-            alert(error instanceof Error ? error.message : "Failed to accept booking. Please try again.");
-        }
+    // Button factory for cleaner action button rendering
+    type ActionButton = {
+        show: boolean;
+        label: string;
+        icon: any;
+        onClick: () => void | Promise<void>;
+        variant?: "default" | "outline";
+        className?: string;
+        fullWidth?: boolean;
     };
 
-    const handleReject = async () => {
-        if (!confirm("Are you sure you want to reject this booking?")) {
-            return;
-        }
-        try {
-            await rejectBooking({ bookingId: booking._id });
-            alert("Booking rejected successfully!");
-        } catch (error) {
-            console.error("Failed to reject booking:", error);
-            alert(error instanceof Error ? error.message : "Failed to reject booking. Please try again.");
-        }
-    };
+    const actionButtons: ActionButton[] = [
+        {
+            show: canJoinVideoCall,
+            label: "Join Video Call",
+            icon: VideoIcon,
+            onClick: async () => {
+                try {
+                    const url = await getVideoCallUrl({
+                        bookingId: booking._id,
+                        userName: currentUser.name || currentUser.email || "User",
+                        userId: currentUser._id,
+                        userEmail: currentUser.email || "",
+                    });
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                } catch (error) {
+                    alert('Failed to join video call');
+                }
+            },
+            className: "bg-blue-600 hover:bg-blue-700 text-white",
+            fullWidth: true,
+        },
+        {
+            show: canPay,
+            label: "Complete Payment",
+            icon: CreditCardIcon,
+            onClick: () => onOpenDialog("payment", booking._id),
+            className: "bg-purple-600 hover:bg-purple-700 text-white",
+            fullWidth: true,
+        },
+        {
+            show: canAcceptReject,
+            label: "Accept",
+            icon: CheckIcon,
+            onClick: async () => {
+                try {
+                    await acceptBooking({ bookingId: booking._id });
+                } catch (error) {
+                    alert(error instanceof Error ? error.message : "Failed to accept booking");
+                }
+            },
+            className: "bg-green-600 hover:bg-green-700 text-white",
+        },
+        {
+            show: canAcceptReject,
+            label: "Decline",
+            icon: XIcon,
+            onClick: async () => {
+                if (!confirm("Are you sure you want to decline this booking?")) return;
+                try {
+                    await rejectBooking({ bookingId: booking._id });
+                } catch (error) {
+                    alert(error instanceof Error ? error.message : "Failed to decline booking");
+                }
+            },
+            variant: "outline",
+            className: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-900",
+        },
+        {
+            show: canReschedule && !canJoinVideoCall && !canAcceptReject,
+            label: "Reschedule",
+            icon: CalendarClockIcon,
+            onClick: () => onOpenDialog("reschedule", booking._id),
+            variant: "outline",
+        },
+        {
+            show: canCancel && !canJoinVideoCall && !canAcceptReject,
+            label: "Cancel",
+            icon: BanIcon,
+            onClick: async () => {
+                if (!confirm("Are you sure you want to cancel this booking?")) return;
+                try {
+                    await cancelBooking({ bookingId: booking._id });
+                } catch (error) {
+                    alert(error instanceof Error ? error.message : "Failed to cancel booking");
+                }
+            },
+            variant: "outline",
+            className: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-900",
+        },
+    ];
 
-    const handleCancel = async () => {
-        if (!confirm("Are you sure you want to cancel this booking?")) {
-            return;
-        }
-        try {
-            await cancelBooking({ bookingId: booking._id });
-            alert("Booking canceled successfully!");
-        } catch (error) {
-            console.error("Failed to cancel booking:", error);
-            alert(error instanceof Error ? error.message : "Failed to cancel booking. Please try again.");
+    const visibleButtons = actionButtons.filter(btn => btn.show);
+
+    const getStatusBadge = () => {
+        switch (booking.status) {
+            case "pending":
+            case "awaiting_reschedule":
+                return <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Pending</Badge>;
+            case "awaiting_payment":
+            case "processing_payment":
+                return <Badge className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800">Payment Required</Badge>;
+            case "confirmed":
+                return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Confirmed</Badge>;
+            case "completed":
+                return <Badge variant="outline" className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Completed</Badge>;
+            case "canceled":
+            case "rejected":
+                return <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">Cancelled</Badge>;
+            default:
+                return <Badge variant="outline">{String(booking.status).replace(/_/g, " ")}</Badge>;
         }
     };
 
     return (
-        <>
-            <Card className="overflow-hidden transition-shadow hover:shadow-lg border-2">
-                <CardHeader className="p-5">
-                    <div className="flex items-center gap-4 mb-4">
-                        {otherParty.image ? (
-                            <img
-                                src={otherParty.image}
-                                alt={otherParty.name || "User"}
-                                className="h-12 w-12 rounded-full object-cover ring-2 ring-zinc-200 dark:ring-zinc-700"
-                            />
-                        ) : (
-                            <div className="h-12 w-12 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center ring-2 ring-zinc-200 dark:ring-zinc-700">
-                                <span className="text-lg font-bold text-zinc-600 dark:text-zinc-400">
-                                    {otherParty.name?.[0]?.toUpperCase() || "?"}
-                                </span>
-                            </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-0.5">
-                                {otherParty.name || "Unknown User"}
-                            </h3>
-                            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                {isTutor ? "Student" : "Tutor"}
-                            </p>
-                        </div>
-                        <Badge
-                            className={statusColors[booking.status] || statusColors.pending}
-                        >
-                            {booking.status.replace(/_/g, " ")}
-                        </Badge>
-                    </div>
-
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
-                        <div className="flex items-center gap-4 flex-wrap">
-                            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                                <span className="text-lg">��</span>
-                                <div>
-                                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Date</p>
-                                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {bookingDate.toLocaleDateString("en-GB", {
-                                            weekday: "short",
-                                            month: "short",
-                                            day: "numeric",
-                                            year: "numeric",
-                                            timeZone: "Europe/London",
-                                        })}
-                                    </p>
+        <Card className="overflow-hidden hover:shadow-lg transition-all duration-200 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+            <CardContent className="p-0">
+                {/* Header */}
+                <div className="p-6 pb-4">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                            {otherParty.image ? (
+                                <img
+                                    src={otherParty.image}
+                                    alt={otherParty.name || "User"}
+                                    className="h-14 w-14 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm"
+                                />
+                            ) : (
+                                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
+                                    <span className="text-xl font-bold text-zinc-700 dark:text-zinc-300">
+                                        {otherParty?.name?.[0]?.toUpperCase() || "?"}
+                                    </span>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-lg">🕐</span>
-                                <div>
-                                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Time</p>
-                                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {bookingDate.toLocaleTimeString("en-GB", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                            timeZone: "Europe/London",
-                                        })}
-                                    </p>
-                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                    {otherPartyName}
+                                </h3>
+                                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                                    {isTutor ? "Student" : "Your Tutor"}
+                                </p>
                             </div>
                         </div>
+                        <div className="flex flex-col items-end gap-2">
+                            {getStatusBadge()}
+                            {isPaid && (
+                                <Badge variant="default" className="bg-emerald-600 text-white border-emerald-600">
+                                    Paid
+                                </Badge>
+                            )}
+                            {booking.bookingType === "free" && (
+                                <Badge variant="success" className="bg-blue-600 text-white border-blue-600">
+                                    Free Meeting
+                                </Badge>
+                            )}
+                        </div>
                     </div>
-                </CardHeader>
 
-                <CardContent className="p-5 pt-0">
-                    <div className="flex flex-wrap gap-2">
-                        {canJoinVideoCall && (
-                            <Button
-                                onClick={async (e) => {
-                                    e.preventDefault();
-                                    try {
-                                        const url = await getVideoCallUrl({
-                                            bookingId: booking._id,
-                                            userName: currentUser.name || currentUser.email || "User",
-                                            userId: currentUser._id,
-                                            userEmail: currentUser.email || "",
-                                        });
-                                        window.open(url, '_blank', 'noopener,noreferrer');
-                                    } catch (error) {
-                                        alert('Failed to join video call. Please try again.');
-                                    }
-                                }}
-                                className="flex-1 min-w-[120px]"
-                            >
-                                🎥 Join Video Call
-                            </Button>
-                        )}
-
-                        {canPay && (
-                            <Button
-                                onClick={() => onOpenDialog("payment", booking._id)}
-                                className="flex-1 min-w-[120px]"
-                                variant="default"
-                            >
-                                💳 Pay Now
-                            </Button>
-                        )}
-
-                        {canAcceptReject && (
-                            <>
-                                <Button
-                                    onClick={handleAccept}
-                                    className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700"
-                                >
-                                    ✓ Accept
-                                </Button>
-                                <Button
-                                    onClick={handleReject}
-                                    className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700"
-                                >
-                                    ✗ Reject
-                                </Button>
-                            </>
-                        )}
-
-                        {canReschedule && (
-                            <Button
-                                onClick={() => onOpenDialog("reschedule", booking._id)}
-                                className="flex-1 min-w-[120px]"
-                                variant="default"
-                            >
-                                📅 Reschedule
-                            </Button>
-                        )}
-
-                        {canCancel && (
-                            <Button
-                                onClick={handleCancel}
-                                className="flex-1 min-w-[120px]"
-                                variant="outline"
-                            >
-                                🚫 Cancel
-                            </Button>
-                        )}
-                    </div>
-                </CardContent>
-
-                <Separator />
-
-                {/* Chat Section - BookingChat has its own expand/collapse */}
-                <BookingChat
-                    bookingId={booking._id}
-                    currentUserId={currentUser._id}
-                    otherPartyName={otherPartyName}
-                />
-
-                <Separator />
-
-                {/* Details & History Section */}
-                <div>
-                    <button
-                        onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                    >
-                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                            📋 View Details & History
-                        </span>
-                        <span className={`text-zinc-400 dark:text-zinc-500 text-sm transform transition-transform ${isHistoryExpanded ? 'rotate-180' : ''}`}>
-                            ▼
-                        </span>
-                    </button>
-
-                    {isHistoryExpanded && (
-                        <div className="px-4 pb-4 space-y-4">
-                            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
-                                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase mb-1">
-                                    Booking Reference
-                                </p>
-                                <p className="text-sm font-mono text-zinc-900 dark:text-zinc-100 break-all">
-                                    {booking._id}
-                                </p>
-                                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2">
-                                    Created {new Date(booking._creationTime).toLocaleDateString("en-GB", {
-                                        year: "numeric",
-                                        month: "long",
+                    {/* Date/Time */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                            <CalendarIcon className="size-5 text-zinc-500 dark:text-zinc-400 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="text-xs text-zinc-500 dark:text-zinc-500 font-medium">Date</p>
+                                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {bookingDate.toLocaleDateString("en-GB", {
+                                        weekday: "short",
+                                        month: "short",
                                         day: "numeric",
+                                        timeZone: "Europe/London",
+                                    })}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                            <ClockIcon className="size-5 text-zinc-500 dark:text-zinc-400 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="text-xs text-zinc-500 dark:text-zinc-500 font-medium">Time</p>
+                                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {bookingDate.toLocaleTimeString("en-GB", {
                                         hour: "2-digit",
                                         minute: "2-digit",
                                         timeZone: "Europe/London",
                                     })}
                                 </p>
                             </div>
+                        </div>
+                    </div>
 
-                            <div>
-                                <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-                                    Event History ({booking.events.length})
-                                </h4>
-                                <div className="space-y-2">
+                    {/* Payment Status - Show when paid */}
+                    {isPaid && paymentSucceededEvent && (
+                        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                                <CheckIcon className="size-4" />
+                                <span className="text-sm font-medium">
+                                    Payment completed on {new Date(paymentSucceededEvent.timestamp).toLocaleDateString("en-GB", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        timeZone: "Europe/London",
+                                    })}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Actions */}
+                    {visibleButtons.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {visibleButtons.map((btn, index) => {
+                                const Icon = btn.icon;
+                                return (
+                                    <Button
+                                        key={index}
+                                        onClick={btn.onClick}
+                                        variant={btn.variant || "default"}
+                                        className={`gap-2 ${btn.fullWidth ? "sm:col-span-2" : ""} ${btn.className || ""}`}
+                                        size="lg"
+                                    >
+                                        <Icon className="size-5" />
+                                        {btn.label}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <Separator />
+
+                {/* Chat */}
+                <BookingChat
+                    bookingId={booking._id}
+                    currentUserId={currentUser._id}
+                    otherPartyName={otherPartyName}
+                    unreadCount={unreadCount}
+                />
+
+                {/* History */}
+                {booking.events.length > 0 && (
+                    <>
+                        <Separator />
+                        <div>
+                            <button
+                                onClick={() => setIsExpanded(!isExpanded)}
+                                className="w-full px-6 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                            >
+                                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                    History ({booking.events.length} events)
+                                </span>
+                                {isExpanded ? (
+                                    <ChevronUpIcon className="size-4 text-zinc-400" />
+                                ) : (
+                                    <ChevronDownIcon className="size-4 text-zinc-400" />
+                                )}
+                            </button>
+
+                            {isExpanded && (
+                                <div className="px-6 pb-6 space-y-3">
                                     {booking.events.map((event: any, index: number) => (
                                         <div
                                             key={index}
-                                            className="flex items-start gap-3 text-sm p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
+                                            className="flex items-start gap-3 text-sm p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800"
                                         >
                                             <span className="text-lg">{getEventIcon(event.type)}</span>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-medium text-zinc-900 dark:text-zinc-100 capitalize">
-                                                        {event.type}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 capitalize">
+                                                        {event.type.replace(/_/g, " ")}
                                                     </span>
                                                     <span className="text-zinc-500 dark:text-zinc-500">
                                                         by {event.userName}
                                                     </span>
                                                 </div>
-                                                <p className="text-zinc-600 dark:text-zinc-400 mt-1">
+                                                <p className="text-zinc-600 dark:text-zinc-400 text-sm">
                                                     {formatBookingEvent(event)}
                                                 </p>
                                                 <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
@@ -505,40 +699,30 @@ function BookingCard({ booking, toUser, fromUser, currentUser, onOpenDialog }: B
                                         </div>
                                     ))}
                                 </div>
-                            </div>
+                            )}
                         </div>
-                    )}
-                </div>
-            </Card>
-        </>
+                    </>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
-// ==================== Dialog Components ====================
-// Each dialog component:
-// - Has a clear, single purpose
-// - Accepts isOpen and onClose props for consistent behavior
-// - Calls onClose when user clicks outside, presses ESC, or completes action
-// - Is properly typed with Convex ID types
-// Note: Chat is now embedded directly in the booking card for better UX
+// ==================== Dialogs ====================
 
 interface CreateBookingDialogProps {
     isOpen: boolean;
-    onClose: () => void; // Removes action & bookingId params from URL
+    onClose: () => void;
 }
 
-/**
- * Dialog for creating a new booking
- * onClose: Called when dialog is dismissed or booking is successfully created
- */
 function CreateBookingDialog({ isOpen, onClose }: CreateBookingDialogProps) {
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Create New Booking</DialogTitle>
+                    <DialogTitle>Book a New Session</DialogTitle>
                     <DialogDescription>
-                        Schedule a new tutoring session
+                        Schedule a tutoring session with one of our expert tutors
                     </DialogDescription>
                 </DialogHeader>
                 <CreateBookingForm onSuccess={onClose} />
@@ -549,26 +733,17 @@ function CreateBookingDialog({ isOpen, onClose }: CreateBookingDialogProps) {
 
 interface RescheduleBookingDialogProps {
     isOpen: boolean;
-    onClose: () => void; // Removes action & bookingId params from URL
+    onClose: () => void;
     bookingId: Id<"bookings">;
     currentTimestamp: number;
 }
 
-/**
- * Dialog for rescheduling an existing booking
- * onClose: Called when dialog is dismissed or reschedule is successfully submitted
- */
-function RescheduleBookingDialog({
-    isOpen,
-    onClose,
-    bookingId,
-    currentTimestamp
-}: RescheduleBookingDialogProps) {
+function RescheduleBookingDialog({ isOpen, onClose, bookingId, currentTimestamp }: RescheduleBookingDialogProps) {
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Reschedule Booking</DialogTitle>
+                    <DialogTitle>Reschedule Session</DialogTitle>
                     <DialogDescription>
                         Request a new time for this booking
                     </DialogDescription>
@@ -585,30 +760,20 @@ function RescheduleBookingDialog({
 
 interface PaymentBookingDialogProps {
     isOpen: boolean;
-    onClose: () => void; // Removes action & bookingId params from URL
+    onClose: () => void;
     bookingId: Id<"bookings">;
     customerEmail: string;
     customerName?: string;
 }
 
-/**
- * Dialog for making payment on a booking
- * onClose: Called when dialog is dismissed or payment is initiated
- */
-function PaymentBookingDialog({
-    isOpen,
-    onClose,
-    bookingId,
-    customerEmail,
-    customerName
-}: PaymentBookingDialogProps) {
+function PaymentBookingDialog({ isOpen, onClose, bookingId, customerEmail, customerName }: PaymentBookingDialogProps) {
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>Complete Payment</DialogTitle>
                     <DialogDescription>
-                        Pay for this tutoring session
+                        Secure payment for your tutoring session
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -620,5 +785,34 @@ function PaymentBookingDialog({
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+// ==================== Skeleton ====================
+
+function BookingCardSkeleton() {
+    return (
+        <Card className="overflow-hidden border-zinc-200 dark:border-zinc-800">
+            <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                    <Skeleton className="h-14 w-14 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <Skeleton className="h-16 rounded-lg" />
+                    <Skeleton className="h-16 rounded-lg" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                    <Skeleton className="h-10 rounded-md" />
+                    <Skeleton className="h-10 rounded-md" />
+                </div>
+            </CardContent>
+        </Card>
     );
 }

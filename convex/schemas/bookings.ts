@@ -14,6 +14,7 @@ export const bookings = defineTable({
     toUserId: v.id("users"),
     timestamp: v.number(),
     status: Bookings.bookingStatus,
+    bookingType: v.union(v.literal("paid"), v.literal("free")),
     events: v.array(Bookings.bookingEvent),
     lastActionByUserId: v.optional(v.id("users")),
     videoCallStartedAt: v.optional(v.number()),
@@ -24,7 +25,10 @@ export const bookings = defineTable({
     .index("by_fromUserId_timestamp", ["fromUserId", "timestamp"])
     .index("by_toUserId_timestamp", ["toUserId", "timestamp"])
     .index("by_fromUserId_status_timestamp", ["fromUserId", "status", "timestamp"])
-    .index("by_toUserId_status_timestamp", ["toUserId", "status", "timestamp"]);
+    .index("by_toUserId_status_timestamp", ["toUserId", "status", "timestamp"])
+    // Indexes for querying bookings between two users
+    .index("by_fromUserId_toUserId", ["fromUserId", "toUserId"])
+    .index("by_toUserId_fromUserId", ["toUserId", "fromUserId"]);
 
 export const createBooking = mutation({
     args: {
@@ -33,7 +37,6 @@ export const createBooking = mutation({
     },
     handler: async (ctx, args) => {
         const currentUser = await getCurrentUserOrThrow(ctx);
-
         await Bookings.createBookingHelper(ctx, {
             fromUserId: currentUser._id,
             toUserId: args.toUserId,
@@ -45,15 +48,23 @@ export const createBooking = mutation({
 export const getMyBookingsPaginated = query({
     args: {
         paginationOpts: paginationOptsValidator,
-        status: v.optional(Bookings.bookingStatus),
+        statuses: v.optional(v.array(Bookings.bookingStatus)),
     },
     handler: async (ctx, args) => {
         const currentUser = await getCurrentUserOrThrow(ctx);
         return await Bookings.getUserBookingsPaginated(ctx, {
             userId: currentUser._id,
             paginationOpts: args.paginationOpts,
-            status: args.status,
+            statuses: args.statuses,
         });
+    }
+})
+
+export const getMyBookingsCounts = query({
+    args: {},
+    handler: async (ctx, args) => {
+        const currentUser = await getCurrentUserOrThrow(ctx);
+        return await Bookings.getUserBookingsCounts(ctx, currentUser._id);
     }
 })
 

@@ -3,20 +3,25 @@ import { Id } from "../_generated/dataModel";
 import { PaginationOptions, PaginationResult } from "convex/server";
 import { getCurrentUserOrThrow, getUserByIdOrThrow, isRole } from "./users";
 import { Infer, v } from "convex/values";
+import {
+    bookingStatus,
+    BookingStatus,
+    activeStatusFilter,
+    pastStatusFilter,
+    ActiveStatusFilter,
+    PastStatusFilter,
+    ACTIVE_STATUSES,
+    PAST_STATUSES,
+} from "../constants/bookingStatuses";
+import { BOOKING_ERRORS } from "../constants/errors";
 
-// Status validator and type
-export const bookingStatus = v.union(
-    v.literal("pending"),
-    v.literal("awaiting_payment"),
-    v.literal("processing_payment"),
-    v.literal("confirmed"),
-    v.literal("canceled"),
-    v.literal("completed"),
-    v.literal("rejected"),
-    v.literal("awaiting_reschedule"),
-);
+// Booking type validator and type
+export const bookingType = v.union(v.literal("paid"), v.literal("free"));
+export type BookingType = Infer<typeof bookingType>;
 
-export type BookingStatus = Infer<typeof bookingStatus>;
+// Re-export for convenience
+export { bookingStatus, ACTIVE_STATUSES, PAST_STATUSES };
+export type { BookingStatus, ActiveStatusFilter, PastStatusFilter };
 
 // Event metadata validators
 export const bookingCreatedEventMetadata = v.object({
@@ -201,11 +206,50 @@ export async function createBookingHelper(
 ) {
     await validateTutorStudentRelationship(ctx, args.fromUserId, args.toUserId);
 
+    // Query bookings in both directions using indexes
+    const bookingsFromTo = await ctx.db
+        .query("bookings")
+        .withIndex("by_fromUserId_toUserId", (q) =>
+            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
+        )
+        .collect();
+
+    const bookingsToFrom = await ctx.db
+        .query("bookings")
+        .withIndex("by_toUserId_fromUserId", (q) =>
+            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
+        )
+        .collect();
+
+    const existingBookings = [...bookingsFromTo, ...bookingsToFrom];
+
+    // Check if there's an active free meeting (pending, awaiting_reschedule, awaiting_payment, processing_payment, or confirmed)
+    const activeFreeBooking = existingBookings.find(
+        (booking) =>
+            booking.bookingType === "free" &&
+            ACTIVE_STATUSES.includes(booking.status as ActiveStatusFilter)
+    );
+
+    if (activeFreeBooking) {
+        throw new Error(BOOKING_ERRORS.FREE_MEETING_ACTIVE);
+    }
+
+    // Determine booking type
+    // If there are no existing bookings, it's free
+    // If there's a cancelled free booking, the new one is still free
+    const hasCancelledFreeBooking = existingBookings.some(
+        (booking) => booking.bookingType === "free" && booking.status === "canceled"
+    );
+    
+    const isFirstBooking = existingBookings.length === 0;
+    const bookingTypeValue: BookingType = (isFirstBooking || hasCancelledFreeBooking) ? "free" : "paid";
+
     const bookingId = await ctx.db.insert("bookings", {
         fromUserId: args.fromUserId,
         toUserId: args.toUserId,
         timestamp: args.timestamp,
         status: "pending",
+        bookingType: bookingTypeValue,
         events: [],
         lastActionByUserId: args.fromUserId,
     });
@@ -230,26 +274,28 @@ export async function acceptBookingHelper(
 ) {
     const booking = await ensureBookingAccess(ctx, args.bookingId, args.userId);
 
-    // For reschedules, only the person who DIDN'T propose can accept
-    const isAwaitingReschedule = booking.status === "awaiting_reschedule";
-
-    if (isAwaitingReschedule && booking.lastActionByUserId === args.userId) {
-        throw new Error("Cannot accept your own reschedule proposal. The other party must accept.");
-    }
-
     // Can only accept pending or awaiting reschedule confirmation bookings
-    if (booking.status !== "pending" && !isAwaitingReschedule) {
-        throw new Error("Can only accept pending bookings");
+    if (booking.status !== "pending" && booking.status !== "awaiting_reschedule") {
+        throw new Error("Can only accept pending or awaiting reschedule bookings");
     }
+
+    // Only the person who DIDN'T make the last action can accept
+    // This ensures the receiver accepts, not the requester
+    if (booking.lastActionByUserId === args.userId) {
+        throw new Error("Cannot accept your own booking request or reschedule proposal. The other party must accept.");
+    }
+
+    // For free meetings, go directly to confirmed. For paid meetings, go to awaiting_payment
+    const newStatus = booking.bookingType === "free" ? "confirmed" : "awaiting_payment";
 
     await ctx.db.patch(args.bookingId, {
-        status: "awaiting_payment",
+        status: newStatus,
     });
 
     // Add acceptance event
     await addBookingEvent(ctx, args.bookingId, args.userId, "accepted", {
-        wasReschedule: isAwaitingReschedule,
-        acceptedTime: isAwaitingReschedule ? booking.timestamp : undefined,
+        wasReschedule: booking.status === "awaiting_reschedule",
+        acceptedTime: booking.status === "awaiting_reschedule" ? booking.timestamp : undefined,
     });
 }
 
@@ -266,10 +312,14 @@ export async function rejectBookingHelper(
     const booking = await ensureBookingAccess(ctx, args.bookingId, args.userId);
 
     // Can only reject pending or awaiting reschedule confirmation bookings
-    const isAwaitingReschedule = booking.status === "awaiting_reschedule";
+    if (booking.status !== "pending" && booking.status !== "awaiting_reschedule") {
+        throw new Error("Can only reject pending or awaiting reschedule bookings");
+    }
 
-    if (booking.status !== "pending" && !isAwaitingReschedule) {
-        throw new Error("Can only reject pending bookings");
+    // Only the person who DIDN'T make the last action can reject
+    // This ensures the receiver rejects, not the requester
+    if (booking.lastActionByUserId === args.userId) {
+        throw new Error("Cannot reject your own booking request or reschedule proposal. The other party must reject.");
     }
 
     await ctx.db.patch(args.bookingId, {
@@ -278,7 +328,7 @@ export async function rejectBookingHelper(
 
     // Add rejection event
     await addBookingEvent(ctx, args.bookingId, args.userId, "rejected", {
-        wasReschedule: isAwaitingReschedule,
+        wasReschedule: booking.status === "awaiting_reschedule",
     });
 }
 
@@ -324,9 +374,9 @@ export async function rescheduleBookingHelper(
     const booking = await ensureBookingAccess(ctx, args.bookingId, args.userId);
     const currentUser = await getUserByIdOrThrow(ctx, args.userId);
 
-    // Can only reschedule confirmed or pending bookings
-    if (booking.status !== "confirmed" && booking.status !== "pending") {
-        throw new Error("Can only reschedule confirmed or pending bookings");
+    // Cannot reschedule completed, canceled, or rejected bookings
+    if (booking.status === "completed" || booking.status === "canceled" || booking.status === "rejected") {
+        throw new Error("Cannot reschedule completed, canceled, or rejected bookings");
     }
 
     const proposedBy = isRole(currentUser, "tutor") ? "tutor" : "student";
@@ -393,6 +443,46 @@ export async function getUserBookings(
 }
 
 /**
+ * Helper to get booking counts by category for a user
+ */
+export async function getUserBookingsCounts(
+    ctx: QueryCtx,
+    userId: Id<"users">
+) {
+    const currentUser = await getUserByIdOrThrow(ctx, userId);
+    const isTutor = isRole(currentUser, "tutor");
+
+    const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
+    const fieldName = isTutor ? "toUserId" : "fromUserId";
+
+    const bookings = await ctx.db.query("bookings")
+        .withIndex(indexName, (q) => q.eq(fieldName, userId))
+        .collect();
+
+    const pendingStatuses = ["pending", "awaiting_reschedule"] as const;
+
+    const counts = {
+        active: 0,
+        past: 0,
+        pending: 0,
+    };
+
+    bookings.forEach((booking) => {
+        if (ACTIVE_STATUSES.includes(booking.status as ActiveStatusFilter)) {
+            counts.active++;
+        }
+        if (PAST_STATUSES.includes(booking.status as PastStatusFilter)) {
+            counts.past++;
+        }
+        if (pendingStatuses.includes(booking.status as typeof pendingStatuses[number])) {
+            counts.pending++;
+        }
+    });
+
+    return counts;
+}
+
+/**
  * Helper to get paginated bookings for a user
  */
 export async function getUserBookingsPaginated(
@@ -400,37 +490,33 @@ export async function getUserBookingsPaginated(
     args: {
         userId: Id<"users">;
         paginationOpts: PaginationOptions;
-        status?: BookingStatus;
+        statuses?: BookingStatus[];
     }
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, args.userId);
     const isTutor = isRole(currentUser, "tutor");
 
-    // Choose index based on whether status filter is provided
-    let query;
-    if (args.status !== undefined) {
-        // Use status-specific index
-        const indexName = isTutor ? "by_toUserId_status_timestamp" : "by_fromUserId_status_timestamp";
-        const fieldName = isTutor ? "toUserId" : "fromUserId";
+    const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
+    const fieldName = isTutor ? "toUserId" : "fromUserId";
 
-        query = ctx.db.query("bookings")
-            .withIndex(indexName, (q) =>
-                q.eq(fieldName, args.userId).eq("status", args.status!)
-            )
-            .order("desc");
-    } else {
-        // Use timestamp-only index
-        const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
-        const fieldName = isTutor ? "toUserId" : "fromUserId";
+    let query = ctx.db.query("bookings")
+        .withIndex(indexName, (q) => q.eq(fieldName, args.userId))
+        .order("desc");
 
-        query = ctx.db.query("bookings")
-            .withIndex(indexName, (q) => q.eq(fieldName, args.userId))
-            .order("desc");
+    // Filter by statuses if provided
+    if (args.statuses && args.statuses.length > 0) {
+        query = query.filter((q) => {
+            let condition = q.eq(q.field("status"), args.statuses![0]);
+            for (let i = 1; i < args.statuses!.length; i++) {
+                condition = q.or(condition, q.eq(q.field("status"), args.statuses![i]));
+            }
+            return condition;
+        });
     }
 
     const paginationResult = await query.paginate(args.paginationOpts);
 
-    // Enrich bookings with user info
+    // Enrich bookings with user info and unread message count
     const enrichedPage = await Promise.all(paginationResult.page.map(async (booking) => {
         const toUser = await getUserByIdOrThrow(ctx, booking.toUserId);
         const fromUser = await getUserByIdOrThrow(ctx, booking.fromUserId);
@@ -444,6 +530,14 @@ export async function getUserBookingsPaginated(
             };
         }));
 
+        // Get unread message count for this booking
+        const messages = await ctx.db
+            .query("messages")
+            .withIndex("bookingId", (q) => q.eq("bookingId", booking._id))
+            .collect();
+
+        const unreadCount = messages.filter((message) => !message.readBy.includes(args.userId)).length;
+
         return {
             booking: {
                 ...booking,
@@ -451,7 +545,8 @@ export async function getUserBookingsPaginated(
             },
             toUser,
             fromUser,
-            currentUser
+            currentUser,
+            unreadCount
         };
     }));
 

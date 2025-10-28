@@ -7,6 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
     Select,
     SelectContent,
@@ -14,6 +15,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { BOOKING_ERRORS } from "@/convex/constants/errors";
+import { CheckCircle2Icon, PopcornIcon, AlertCircleIcon } from "lucide-react";
 
 interface CreateBookingFormProps {
     onSuccess?: () => void;
@@ -24,6 +27,7 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const createBooking = useMutation(api.schemas.bookings.createBooking);
     const allUsers = useQuery(api.schemas.users.getAllUsers);
@@ -36,9 +40,10 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
 
         if (!toUserId || !date || !time) {
-            alert("Please fill in all fields");
+            setError("Please fill in all fields");
             return;
         }
 
@@ -59,13 +64,16 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
 
             // Call onSuccess first to close dialog
             onSuccess?.();
-
-            // Then show success message
-            alert("Booking created successfully!");
         } catch (error) {
-            console.error("Failed to create booking:", error);
-            const errorMessage = error instanceof Error ? error.message : "Failed to create booking. Please try again.";
-            alert(errorMessage);
+            console.error(error);
+            if (error instanceof Error) {
+                if (error.message.includes(BOOKING_ERRORS.FREE_MEETING_ACTIVE)) {
+                    setError(BOOKING_ERRORS.FREE_MEETING_ACTIVE);
+                    return;
+                }
+            }
+
+            setError(error instanceof Error ? error.message : "Failed to create booking");
         } finally {
             setIsSubmitting(false);
         }
@@ -73,6 +81,15 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+            <div className="grid w-full max-w-xl items-start gap-4">
+                <Alert variant="destructive">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                </div>
+            )}
+
             <div className="space-y-2">
                 <Label htmlFor="toUserId">{selectLabel}</Label>
                 <Select value={toUserId} onValueChange={setToUserId}>

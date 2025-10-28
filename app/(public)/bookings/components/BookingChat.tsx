@@ -9,19 +9,18 @@ interface BookingChatProps {
     bookingId: Id<"bookings">;
     currentUserId: Id<"users">;
     otherPartyName: string;
+    unreadCount: number;
 }
 
-export default function BookingChat({ bookingId, currentUserId, otherPartyName }: BookingChatProps) {
+export default function BookingChat({ bookingId, currentUserId, otherPartyName, unreadCount }: BookingChatProps) {
     const [message, setMessage] = useState("");
     const [isChatOpen, setIsChatOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const hasMarkedAsReadRef = useRef(false);
 
     const messages = useQuery(
         api.schemas.messages.getBookingMessages,
         isChatOpen ? { bookingId } : "skip"
     );
-    const unreadCount = useQuery(api.schemas.messages.getUnreadCount, { bookingId });
     const sendMessage = useMutation(api.schemas.messages.sendMessage);
     const markMessagesAsRead = useMutation(api.schemas.messages.markMessagesAsRead);
 
@@ -32,15 +31,16 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName }
         }
     }, [messages, isChatOpen]);
 
-    const handleToggleChat = () => {
-        const willBeOpen = !isChatOpen;
-        setIsChatOpen(willBeOpen);
-
-        // Mark messages as read when opening chat (only once per session)
-        if (willBeOpen && !hasMarkedAsReadRef.current) {
+    // Mark messages as read when they're actually loaded and visible
+    useEffect(() => {
+        if (isChatOpen && messages && messages.length > 0) {
+            // Only mark as read if there are messages to display
             markMessagesAsRead({ bookingId });
-            hasMarkedAsReadRef.current = true;
         }
+    }, [isChatOpen, messages, bookingId, markMessagesAsRead]);
+
+    const handleToggleChat = () => {
+        setIsChatOpen(!isChatOpen);
     };
 
     const handleSendMessage = async (e: React.FormEvent) => {

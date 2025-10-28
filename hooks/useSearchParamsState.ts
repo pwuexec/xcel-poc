@@ -19,46 +19,51 @@ export function useSearchParamsState() {
 
     /**
      * Set a single search param
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const setParam = (key: string, value: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set(key, value);
-        router.push(`?${params.toString()}`);
+        router.replace(`?${params.toString()}`, { scroll: false });
     };
 
     /**
      * Remove a single search param
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const removeParam = (key: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.delete(key);
         const paramString = params.toString();
-        router.push(paramString ? `?${paramString}` : window.location.pathname);
+        router.replace(paramString ? `?${paramString}` : window.location.pathname, { scroll: false });
     };
 
     /**
      * Set multiple search params at once
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const setParams = (updates: Record<string, string>) => {
         const params = new URLSearchParams(searchParams.toString());
         Object.entries(updates).forEach(([key, value]) => {
             params.set(key, value);
         });
-        router.push(`?${params.toString()}`);
+        router.replace(`?${params.toString()}`, { scroll: false });
     };
 
     /**
      * Remove multiple search params at once
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const removeParams = (keys: string[]) => {
         const params = new URLSearchParams(searchParams.toString());
         keys.forEach((key) => params.delete(key));
         const paramString = params.toString();
-        router.push(paramString ? `?${paramString}` : window.location.pathname);
+        router.replace(paramString ? `?${paramString}` : window.location.pathname, { scroll: false });
     };
 
     /**
      * Update params (set some, remove others) in a single operation
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const updateParams = (updates: { set?: Record<string, string>; remove?: string[] }) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -76,14 +81,15 @@ export function useSearchParamsState() {
         }
 
         const paramString = params.toString();
-        router.push(paramString ? `?${paramString}` : window.location.pathname);
+        router.replace(paramString ? `?${paramString}` : window.location.pathname, { scroll: false });
     };
 
     /**
      * Clear all search params
+     * Uses router.replace() for optimistic updates without triggering a server fetch
      */
     const clearParams = () => {
-        router.push(window.location.pathname);
+        router.replace(window.location.pathname, { scroll: false });
     };
 
     /**
