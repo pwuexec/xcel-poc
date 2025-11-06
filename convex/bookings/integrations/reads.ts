@@ -3,8 +3,6 @@ import { internalQuery, query } from "../../_generated/server";
 import { _verifyBookingAndParticipantsQuery } from "../cases/queries/_verifyBookingAndParticipantsQuery";
 import { _getUserBookingsPaginatedQuery } from "../cases/queries/_getUserBookingsPaginatedQuery";
 import { getCurrentUserOrThrow } from "../../model/users";
-import { _getUserBookingsCountsQuery } from "../cases/queries/_getUserBookingsCountsQuery";
-import { _getBookingWithUsersQuery } from "../cases/queries/_getBookingWithUsersQuery";
 import { _getBookingEligibilityQuery } from "../cases/queries/_getBookingEligibilityQuery";
 import { paginationOptsValidator } from "convex/server";
 
@@ -23,9 +21,10 @@ export const verifyBookingAndParticipantsQuery = internalQuery({
 });
 
 /**
- * Public query to get paginated bookings for the current user
+ * Optimized query to get bookings with counts in a single call
+ * Returns paginated bookings with all necessary data and status counts
  */
-export const getMyBookingsPaginated = query({
+export const getMyBookingsWithCounts = query({
     args: {
         paginationOpts: paginationOptsValidator,
         statuses: v.optional(v.array(v.string())),
@@ -36,30 +35,8 @@ export const getMyBookingsPaginated = query({
             userId: currentUser._id,
             paginationOpts: args.paginationOpts,
             statuses: args.statuses,
+            includeCounts: true,
         });
-    },
-});
-
-/**
- * Public query to get booking counts by status for the current user
- */
-export const getMyBookingsCountsQuery = query({
-    args: {},
-    handler: async (ctx) => {
-        const currentUser = await getCurrentUserOrThrow(ctx);
-        return await _getUserBookingsCountsQuery(ctx, currentUser._id);
-    },
-});
-
-/**
- * Public query to get a single booking with user details
- */
-export const getBookingWithUsersQuery = query({
-    args: {
-        bookingId: v.id("bookings"),
-    },
-    handler: async (ctx, args) => {
-        return await _getBookingWithUsersQuery(ctx, args.bookingId);
     },
 });
 

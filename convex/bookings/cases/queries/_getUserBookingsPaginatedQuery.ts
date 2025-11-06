@@ -3,6 +3,7 @@ import { Id } from "../../../_generated/dataModel";
 import { PaginationOptions } from "convex/server";
 import { getUserByIdOrThrow, isRole } from "../../../model/users";
 import { BookingEvent } from "../../types/bookingEvents";
+import { ACTIVE_STATUSES, PAST_STATUSES } from "../../types/bookingStatuses";
 
 export async function _getUserBookingsPaginatedQuery(
     ctx: QueryCtx,
@@ -10,6 +11,7 @@ export async function _getUserBookingsPaginatedQuery(
         userId: Id<"users">;
         paginationOpts: PaginationOptions;
         statuses?: string[];
+        includeCounts?: boolean; // New parameter to optionally include counts
     }
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, args.userId);
@@ -69,8 +71,27 @@ export async function _getUserBookingsPaginatedQuery(
         };
     }));
 
+    // Optionally calculate counts efficiently using the same base query
+    let counts = undefined;
+    if (args.includeCounts) {
+        // We need to query without pagination to get counts
+        // But we only fetch the status field, not full booking data
+        const allBookings = await ctx.db.query("bookings")
+            .withIndex(indexName, (q) => q.eq(fieldName, args.userId))
+            .collect();
+
+        const pendingStatuses = ["pending", "awaiting_reschedule"];
+        
+        counts = {
+            active: allBookings.filter(b => ACTIVE_STATUSES.includes(b.status as any)).length,
+            past: allBookings.filter(b => PAST_STATUSES.includes(b.status as any)).length,
+            pending: allBookings.filter(b => pendingStatuses.includes(b.status)).length,
+        };
+    }
+
     return {
         ...paginationResult,
         page: enrichedPage,
+        counts,
     };
 }

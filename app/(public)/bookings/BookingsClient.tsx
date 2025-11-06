@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ACTIVE_STATUSES, PAST_STATUSES } from "@/convex/bookings/types/bookingStatuses";
 import { useState } from "react";
-import { usePaginatedQuery, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useSearchParamsState } from "@/hooks/useSearchParamsState";
 import CreateBookingForm from "./_components/CreateBookingForm";
 import RescheduleBookingForm from "./_components/RescheduleBookingForm";
@@ -42,7 +42,7 @@ import {
     RepeatIcon,
 } from "lucide-react";
 
-type BookingWithUsers = FunctionReturnType<typeof api.bookings.integrations.reads.getMyBookingsPaginated>["page"][0];
+type BookingWithUsers = FunctionReturnType<typeof api.bookings.integrations.reads.getMyBookingsWithCounts>["page"][0];
 
 interface BookingsClientProps {
     initialStatus?: string;
@@ -58,12 +58,18 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
     // Map tab to status array from Convex
     const statusesToFetch = statusFilter === "past" ? [...PAST_STATUSES] : [...ACTIVE_STATUSES];
 
-    const { results, status, loadMore } = usePaginatedQuery(
-        api.bookings.integrations.reads.getMyBookingsPaginated,
-        { statuses: statusesToFetch },
-        { initialNumItems: 10 }
+    // Use optimized single query with counts and pagination
+    const bookingsData = useQuery(
+        api.bookings.integrations.reads.getMyBookingsWithCounts,
+        { 
+            statuses: statusesToFetch,
+            paginationOpts: { numItems: 50, cursor: null } // Fetch more upfront since we don't have load more
+        }
     );
 
+    const results = bookingsData?.page;
+    const status = bookingsData === undefined ? "LoadingFirstPage" : "Exhausted";
+    
     const isCreateDialogOpen = action === "create";
     const isRescheduleDialogOpen = action === "reschedule" && !!bookingId;
     const isPaymentDialogOpen = action === "payment" && !!bookingId;
@@ -84,8 +90,7 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
         ? results?.find((item: any) => String(item.booking._id) === bookingId)
         : null;
 
-    // Use Convex query for counts instead of client-side filtering
-    const statusCounts = useQuery(api.bookings.integrations.reads.getMyBookingsCountsQuery) || {
+    const statusCounts = bookingsData?.counts || {
         active: 0,
         past: 0,
         pending: 0,
@@ -277,24 +282,6 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
                                     </div>
                                 </div>
                             ))}
-
-                            {status === "CanLoadMore" && (
-                                <div className="flex justify-center pt-6">
-                                    <Button
-                                        onClick={() => loadMore(10)}
-                                        variant="outline"
-                                        size="lg"
-                                    >
-                                        Load More
-                                    </Button>
-                                </div>
-                            )}
-
-                            {status === "LoadingMore" && (
-                                <div className="text-center py-8">
-                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900 dark:border-zinc-100"></div>
-                                </div>
-                            )}
                         </>
                     )}
                 </div>
