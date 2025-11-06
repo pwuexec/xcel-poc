@@ -711,7 +711,7 @@ function BookingCard({ booking, toUser, fromUser, currentUser, unreadCount, onOp
             className: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-900",
         },
         {
-            show: canReschedule && !canJoinVideoCall && !canAcceptReject,
+            show: canReschedule && !canJoinVideoCall,
             label: "Reschedule",
             icon: CalendarClockIcon,
             onClick: () => onOpenDialog("reschedule", booking._id),

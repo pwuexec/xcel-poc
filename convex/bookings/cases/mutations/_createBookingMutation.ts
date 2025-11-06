@@ -5,6 +5,7 @@ import { ACTIVE_STATUSES } from "../../types/bookingStatuses";
 import { BOOKING_ERRORS } from "../../../constants/errors";
 import { _validateTutorStudentRelationship } from "../_validateTutorStudentRelationship";
 import { _addBookingEvent } from "../_addBookingEvent";
+import { _getBookingEligibilityQuery } from "../queries/_getBookingEligibilityQuery";
 
 export async function _createBookingMutation(
     ctx: MutationCtx,
@@ -12,47 +13,46 @@ export async function _createBookingMutation(
         fromUserId: Id<"users">;
         toUserId: Id<"users">;
         timestamp: number;
+        bookingType?: BookingType; // Optional: allow explicit booking type specification
     }
 ) {
     await _validateTutorStudentRelationship(ctx, args.fromUserId, args.toUserId);
 
-    // Query bookings in both directions using indexes
-    const bookingsFromTo = await ctx.db
-        .query("bookings")
-        .withIndex("by_fromUserId_toUserId", (q) =>
-            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
-        )
-        .collect();
+    // Use the efficient eligibility query helper
+    const eligibility = await _getBookingEligibilityQuery(ctx, {
+        fromUserId: args.fromUserId,
+        toUserId: args.toUserId,
+    });
 
-    const bookingsToFrom = await ctx.db
-        .query("bookings")
-        .withIndex("by_toUserId_fromUserId", (q) =>
-            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
-        )
-        .collect();
-
-    const existingBookings = [...bookingsFromTo, ...bookingsToFrom];
-
-    // Check if there's an active free meeting (pending, awaiting_reschedule, awaiting_payment, processing_payment, or confirmed)
-    const activeFreeBooking = existingBookings.find(
-        (booking) =>
-            booking.bookingType === "free" &&
-            (ACTIVE_STATUSES as readonly string[]).includes(booking.status)
-    );
-
-    if (activeFreeBooking) {
+    // Check for active free meeting
+    if (eligibility.hasActiveFreeBooking) {
         throw new Error(BOOKING_ERRORS.FREE_MEETING_ACTIVE);
     }
 
     // Determine booking type
-    // If there are no existing bookings, it's free
-    // If there's a cancelled free booking, the new one is still free
-    const hasCancelledFreeBooking = existingBookings.some(
-        (booking) => booking.bookingType === "free" && booking.status === "canceled"
-    );
+    let bookingTypeValue: BookingType;
     
-    const isFirstBooking = existingBookings.length === 0;
-    const bookingTypeValue: BookingType = (isFirstBooking || hasCancelledFreeBooking) ? "free" : "paid";
+    if (args.bookingType) {
+        // Explicit booking type provided - validate it
+        if (args.bookingType === "paid" && !eligibility.canCreatePaidBooking) {
+            throw new Error("Cannot create a paid booking without a completed free meeting first");
+        }
+        
+        if (args.bookingType === "free" && !eligibility.canCreateFreeBooking) {
+            throw new Error("Cannot create another free booking at this time");
+        }
+        
+        bookingTypeValue = args.bookingType;
+    } else {
+        // Auto-determine booking type based on eligibility
+        if (eligibility.isFirstBooking || (!eligibility.hasCompletedFreeMeeting && eligibility.canCreateFreeBooking)) {
+            bookingTypeValue = "free";
+        } else if (eligibility.hasCompletedFreeMeeting) {
+            bookingTypeValue = "paid";
+        } else {
+            throw new Error("Unable to determine booking type");
+        }
+    }
 
     const bookingId = await ctx.db.insert("bookings", {
         fromUserId: args.fromUserId,

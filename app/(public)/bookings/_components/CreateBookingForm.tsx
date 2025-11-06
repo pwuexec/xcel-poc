@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -16,7 +16,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { BOOKING_ERRORS } from "@/convex/constants/errors";
-import { CheckCircle2Icon, PopcornIcon, AlertCircleIcon } from "lucide-react";
+import { CheckCircle2Icon, PopcornIcon, AlertCircleIcon, InfoIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface CreateBookingFormProps {
     onSuccess?: () => void;
@@ -26,17 +27,47 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     const [toUserId, setToUserId] = useState("");
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
+    const [bookingType, setBookingType] = useState<"free" | "paid" | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const createBooking = useMutation(api.bookings.integrations.writes.createBookingMutation);
     const allUsers = useQuery(api.schemas.users.getAllUsers);
     const currentUser = useQuery(api.schemas.users.getMe);
+    
+    // Get booking eligibility for selected user
+    const eligibility = useQuery(
+        api.bookings.integrations.reads.getBookingEligibility,
+        toUserId ? { otherUserId: toUserId as Id<"users"> } : "skip"
+    );
 
     // Determine if current user is a tutor
     const isTutor = currentUser?.role === "tutor";
     const selectLabel = isTutor ? "Select Student" : "Select Tutor";
     const selectPlaceholder = isTutor ? "Select a student..." : "Select a tutor...";
+
+    // Auto-set booking type based on eligibility
+    useEffect(() => {
+        if (eligibility) {
+            if (eligibility.canCreateFreeBooking && !eligibility.canCreatePaidBooking) {
+                setBookingType("free");
+            } else if (!eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking) {
+                setBookingType("paid");
+            } else if (eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking) {
+                // Both available, let user choose (default to free)
+                if (!bookingType) {
+                    setBookingType("free");
+                }
+            } else {
+                setBookingType(null);
+            }
+        }
+    }, [eligibility]);
+
+    // Reset booking type when user changes
+    useEffect(() => {
+        setBookingType(null);
+    }, [toUserId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -44,6 +75,11 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
 
         if (!toUserId || !date || !time) {
             setError("Please fill in all fields");
+            return;
+        }
+
+        if (!bookingType) {
+            setError("Please select a booking type");
             return;
         }
 
@@ -55,12 +91,14 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
             await createBooking({
                 toUserId: toUserId as Id<"users">,
                 timestamp,
+                bookingType,
             });
 
             // Reset form
             setToUserId("");
             setDate("");
             setTime("");
+            setBookingType(null);
 
             // Call onSuccess first to close dialog
             onSuccess?.();
@@ -106,6 +144,78 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
                 </Select>
             </div>
 
+            {/* Show booking type info/selector */}
+            {eligibility && toUserId && (
+                <div className="space-y-2">
+                    <Label>Booking Type</Label>
+                    {eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking && (
+                        <>
+                            <Select 
+                                value={bookingType || ""} 
+                                onValueChange={(value) => setBookingType(value as "free" | "paid")}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select booking type..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="free">
+                                        Free Meeting (Introductory)
+                                    </SelectItem>
+                                    <SelectItem value="paid">
+                                        Paid Session
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Alert>
+                                <InfoIcon className="h-4 w-4" />
+                                <AlertDescription className="text-sm">
+                                    You've completed a free meeting with this {isTutor ? "student" : "tutor"}. 
+                                    You can book another free meeting or start paid sessions.
+                                </AlertDescription>
+                            </Alert>
+                        </>
+                    )}
+                    {eligibility.canCreateFreeBooking && !eligibility.canCreatePaidBooking && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center gap-2">
+                                <Badge className="bg-blue-600 text-white">Free Meeting</Badge>
+                                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                                    {eligibility.isFirstBooking 
+                                        ? "First booking with this " + (isTutor ? "student" : "tutor")
+                                        : "Free introductory session"
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    {!eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking && (
+                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                            <div className="flex items-center gap-2">
+                                <Badge className="bg-purple-600 text-white">Paid Session</Badge>
+                                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                                    Paid tutoring session
+                                </span>
+                            </div>
+                            <Alert className="mt-2">
+                                <InfoIcon className="h-4 w-4" />
+                                <AlertDescription className="text-sm">
+                                    You've completed a free meeting with this {isTutor ? "student" : "tutor"}. 
+                                    New bookings will be paid sessions.
+                                </AlertDescription>
+                            </Alert>
+                        </div>
+                    )}
+                    {eligibility.hasActiveFreeBooking && (
+                        <Alert variant="destructive">
+                            <AlertCircleIcon className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                                {BOOKING_ERRORS.FREE_MEETING_ACTIVE}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </div>
+            )}
+
             <div className="space-y-2">
                 <Label htmlFor="date">Date (UK Time)</Label>
                 <Input
@@ -132,7 +242,7 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
                 <Button
                     type="submit"
                     className="w-full"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !bookingType || (eligibility && eligibility.hasActiveFreeBooking)}
                 >
                     {isSubmitting ? "Creating..." : "Create Booking"}
                 </Button>

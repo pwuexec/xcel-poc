@@ -5,6 +5,8 @@ import { _getUserBookingsPaginatedQuery } from "../cases/queries/_getUserBooking
 import { getCurrentUserOrThrow } from "../../model/users";
 import { _getUserBookingsCountsQuery } from "../cases/queries/_getUserBookingsCountsQuery";
 import { _getBookingWithUsersQuery } from "../cases/queries/_getBookingWithUsersQuery";
+import { _getBookingEligibilityQuery } from "../cases/queries/_getBookingEligibilityQuery";
+import { paginationOptsValidator } from "convex/server";
 
 /**
  * Internal query to verify a booking exists and that a user is a participant
@@ -25,10 +27,7 @@ export const verifyBookingAndParticipantsQuery = internalQuery({
  */
 export const getMyBookingsPaginated = query({
     args: {
-        paginationOpts: v.object({
-            numItems: v.number(),
-            cursor: v.union(v.string(), v.null()),
-        }),
+        paginationOpts: paginationOptsValidator,
         statuses: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
@@ -61,5 +60,22 @@ export const getBookingWithUsersQuery = query({
     },
     handler: async (ctx, args) => {
         return await _getBookingWithUsersQuery(ctx, args.bookingId);
+    },
+});
+
+/**
+ * Public query to check booking eligibility with another user
+ * Returns what booking types are available
+ */
+export const getBookingEligibility = query({
+    args: {
+        otherUserId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await getCurrentUserOrThrow(ctx);
+        return await _getBookingEligibilityQuery(ctx, {
+            fromUserId: currentUser._id,
+            toUserId: args.otherUserId,
+        });
     },
 });

@@ -16,6 +16,7 @@ export const createBookingMutation = mutation({
     args: {
         toUserId: v.id("users"),
         timestamp: v.number(),
+        bookingType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
     },
     handler: async (ctx, args) => {
         const currentUser = await getCurrentUserOrThrow(ctx);
@@ -23,6 +24,7 @@ export const createBookingMutation = mutation({
             fromUserId: currentUser._id,
             toUserId: args.toUserId,
             timestamp: args.timestamp,
+            bookingType: args.bookingType,
         });
     },
 });

@@ -14,8 +14,6 @@ interface PaymentButtonProps {
 
 export default function PaymentButton({
     bookingId,
-    amount = 0,
-    customerName,
     customerEmail
 }: PaymentButtonProps) {
     const [isProcessing, setIsProcessing] = useState(false);
