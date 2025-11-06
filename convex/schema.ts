@@ -1,10 +1,10 @@
 import { defineSchema } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
-import { bookings } from "./schemas/bookings";
 import { users } from "./schemas/users";
 import { messages } from "./schemas/messages";
-import { payments } from "./schemas/payments";
-
+import { recurringRules } from "./schemas/recurringRules";
+import { bookings } from "./bookings/schema";
+import { payments } from "./payments/schema";
 
 const schema = defineSchema({
   ...authTables,
@@ -27,7 +27,12 @@ const schema = defineSchema({
   /**
    * Payments (Stripe)
    */
-  payments
+  payments,
+
+  /**
+   * Recurring Rules (for automatic booking creation)
+   */
+  recurringRules
 });
 
 export default schema;

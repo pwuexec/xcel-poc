@@ -1,132 +1,40 @@
 "use node";
 
-import { internalAction, action } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import Stripe from "stripe";
+import { action, internalAction } from "../../_generated/server";
+import { internal } from "../../_generated/api";
 
-// Internal Node.js action to process webhook
-export const processStripeWebhook = internalAction({
-    args: {
-        body: v.string(),
-        signature: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: "2025-09-30.clover",
-        });
-        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-        let event: Stripe.Event;
-
-        try {
-            event = stripe.webhooks.constructEvent(
-                args.body,
-                args.signature,
-                webhookSecret
-            );
-        } catch (err: any) {
-            console.error(`Webhook signature verification failed: ${err.message}`);
-            throw new Error(`Webhook Error: ${err.message}`);
-        }
-
-        // Handle the event
-        switch (event.type) {
-            case "checkout.session.completed": {
-                const session = event.data.object as Stripe.Checkout.Session;
-
-                await ctx.runMutation(internal.schemas.payments.updatePaymentStatus, {
-                    stripeSessionId: session.id,
-                    stripePaymentIntentId: session.payment_intent as string,
-                    status: "succeeded",
-                });
-
-                console.log(`Payment succeeded for session: ${session.id}`);
-                break;
-            }
-
-            case "checkout.session.expired": {
-                const session = event.data.object as Stripe.Checkout.Session;
-
-                await ctx.runMutation(internal.schemas.payments.updatePaymentStatus, {
-                    stripeSessionId: session.id,
-                    status: "canceled",
-                });
-
-                console.log(`Payment session expired: ${session.id}`);
-                break;
-            }
-
-            case "payment_intent.payment_failed": {
-                const paymentIntent = event.data.object as Stripe.PaymentIntent;
-
-                // Find the checkout session by payment intent ID
-                const sessions = await stripe.checkout.sessions.list({
-                    payment_intent: paymentIntent.id,
-                    limit: 1,
-                });
-
-                if (sessions.data.length > 0) {
-                    await ctx.runMutation(internal.schemas.payments.updatePaymentStatus, {
-                        stripeSessionId: sessions.data[0].id,
-                        stripePaymentIntentId: paymentIntent.id,
-                        status: "failed",
-                    });
-                }
-
-                console.log(`Payment failed for intent: ${paymentIntent.id}`);
-                break;
-            }
-
-            case "charge.refunded": {
-                const charge = event.data.object as Stripe.Charge;
-
-                if (charge.payment_intent) {
-                    // Find the checkout session by payment intent ID
-                    const sessions = await stripe.checkout.sessions.list({
-                        payment_intent: charge.payment_intent as string,
-                        limit: 1,
-                    });
-
-                    if (sessions.data.length > 0) {
-                        await ctx.runMutation(
-                            internal.schemas.payments.updatePaymentStatus,
-                            {
-                                stripeSessionId: sessions.data[0].id,
-                                stripePaymentIntentId: charge.payment_intent as string,
-                                status: "refunded",
-                            }
-                        );
-                    }
-                }
-
-                console.log(`Charge refunded: ${charge.id}`);
-                break;
-            }
-
-            default:
-                console.log(`Unhandled event type: ${event.type}`);
-        }
-    },
-});
-
-// Create Checkout Session Action (Node.js)
+/**
+ * Create Stripe Checkout Session
+ * 
+ * Public Node.js action that:
+ * 1. Validates booking exists
+ * 2. Creates a Stripe Checkout Session
+ * 3. Creates a payment record in the database
+ * 4. Returns the session URL for redirect
+ * 
+ * Can be called from:
+ * - Frontend via Convex client libraries
+ * - HTTP endpoint (via cases/httpActions/stripe.ts)
+ */
 export const createCheckoutSession = action({
     args: {
         bookingId: v.id("bookings"),
-        customerName: v.optional(v.string()),
         customerEmail: v.string(),
+        userId: v.id("users"),
     },
     handler: async (ctx, args) => {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
             apiVersion: "2025-09-30.clover",
         });
 
-        // Get booking to verify it exists and get user ID
+        // Verify booking exists
         const booking = await ctx.runQuery(
-            internal.schemas.bookings.getBookingById,
+            internal.bookings.integrations.reads.verifyBookingAndParticipantsQuery,
             {
                 bookingId: args.bookingId,
+                userId: args.userId,
             }
         );
 
@@ -134,7 +42,7 @@ export const createCheckoutSession = action({
             throw new Error("Booking not found");
         }
 
-        // Get booking details to calculate amount
+        // Calculate payment amount
         // For now, using a fixed amount (e.g., £50.00 for tutoring session)
         const amount = 5000; // £50.00 in pence
         const currency = "gbp";
@@ -165,14 +73,118 @@ export const createCheckoutSession = action({
         });
 
         // Create payment record in Convex
-        await ctx.runMutation(internal.schemas.payments.createPaymentInternal, {
+        await ctx.runMutation(internal.payments.integrations.mutations.createPaymentInternal, {
             bookingId: args.bookingId,
-            userId: booking.fromUserId,
+            userId: args.userId,
             stripeSessionId: session.id,
             amount,
             currency,
         });
 
         return { sessionId: session.id, url: session.url };
+    },
+});
+
+export const processStripeWebhook = internalAction({
+    args: {
+        body: v.string(),
+        signature: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: "2025-09-30.clover",
+        });
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+        let event: Stripe.Event;
+
+        try {
+            event = stripe.webhooks.constructEvent(
+                args.body,
+                args.signature,
+                webhookSecret
+            );
+        } catch (err: any) {
+            console.error(`Webhook signature verification failed: ${err.message}`);
+            throw new Error(`Webhook Error: ${err.message}`);
+        }
+
+        // Handle the event
+        switch (event.type) {
+            case "checkout.session.completed": {
+                const session = event.data.object as Stripe.Checkout.Session;
+
+                await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                    stripeSessionId: session.id,
+                    stripePaymentIntentId: session.payment_intent as string,
+                    status: "succeeded",
+                });
+
+                console.log(`Payment succeeded for session: ${session.id}`);
+                break;
+            }
+
+            case "checkout.session.expired": {
+                const session = event.data.object as Stripe.Checkout.Session;
+
+                await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                    stripeSessionId: session.id,
+                    status: "canceled",
+                });
+
+                console.log(`Payment session expired: ${session.id}`);
+                break;
+            }
+
+            case "payment_intent.payment_failed": {
+                const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+                // Find the checkout session by payment intent ID
+                const sessions = await stripe.checkout.sessions.list({
+                    payment_intent: paymentIntent.id,
+                    limit: 1,
+                });
+
+                if (sessions.data.length > 0) {
+                    await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                        stripeSessionId: sessions.data[0].id,
+                        stripePaymentIntentId: paymentIntent.id,
+                        status: "failed",
+                    });
+                }
+
+                console.log(`Payment failed for intent: ${paymentIntent.id}`);
+                break;
+            }
+
+            case "charge.refunded": {
+                const charge = event.data.object as Stripe.Charge;
+
+                if (charge.payment_intent) {
+                    // Find the checkout session by payment intent ID
+                    const sessions = await stripe.checkout.sessions.list({
+                        payment_intent: charge.payment_intent as string,
+                        limit: 1,
+                    });
+
+                    if (sessions.data.length > 0) {
+                        await ctx.runMutation(
+                            internal.payments.integrations.mutations.updatePaymentStatus,
+                            {
+                                stripeSessionId: sessions.data[0].id,
+                                stripePaymentIntentId: charge.payment_intent as string,
+                                status: "refunded",
+                            }
+                        );
+                    }
+                }
+
+                console.log(`Charge refunded: ${charge.id}`);
+                break;
+            }
+
+            default:
+                console.log(`Unhandled event type: ${event.type}`);
+        }
     },
 });

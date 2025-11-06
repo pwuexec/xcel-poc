@@ -38,7 +38,7 @@ export default function RescheduleBookingForm({
     const [time, setTime] = useState(ukTimeString);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const rescheduleBooking = useMutation(api.schemas.bookings.rescheduleBooking);
+    const rescheduleBooking = useMutation(api.bookings.integrations.writes.rescheduleBookingMutation);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Id } from "@/convex/_generated/dataModel";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 interface PaymentButtonProps {
@@ -20,7 +20,15 @@ export default function PaymentButton({
 }: PaymentButtonProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const createCheckoutSession = useAction(api.stripeActions.createCheckoutSession); const handlePayment = async () => {
+    const currentUser = useQuery(api.schemas.users.getMe);
+    const createCheckoutSession = useAction(api.payments.integrations.actions.createCheckoutSession);
+    
+    const handlePayment = async () => {
+        if (!currentUser) {
+            setError("Please log in to make a payment");
+            return;
+        }
+
         setIsProcessing(true);
         setError(null);
 
@@ -28,8 +36,8 @@ export default function PaymentButton({
             // Call Convex action to create checkout session
             const result = await createCheckoutSession({
                 bookingId,
-                customerName,
                 customerEmail,
+                userId: currentUser._id,
             });
 
             // Redirect to Stripe Checkout using the URL

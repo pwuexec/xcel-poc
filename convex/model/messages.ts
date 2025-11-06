@@ -1,7 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
-import { getUserByIdOrThrow } from "./users";
-import { getBookingOrThrow, ensureBookingAccess } from "./bookings";
+import { _ensureBookingAccess } from "../bookings/cases/_ensureBookingAccess";
 
 /**
  * Helper to send a message
@@ -15,7 +14,7 @@ export async function sendMessageHelper(
     }
 ) {
     // Verify booking exists and user has access
-    await ensureBookingAccess(ctx, args.bookingId, args.userId);
+    await _ensureBookingAccess(ctx, args.bookingId, args.userId);
 
     // Trim and validate message
     const trimmedMessage = args.message.trim();
@@ -47,7 +46,7 @@ export async function getBookingMessagesHelper(
     }
 ) {
     // Verify booking exists and user has access
-    await ensureBookingAccess(ctx, args.bookingId, args.userId);
+    await _ensureBookingAccess(ctx, args.bookingId, args.userId);
 
     const messages = await ctx.db
         .query("messages")
@@ -80,7 +79,7 @@ export async function markMessagesAsReadHelper(
     }
 ) {
     // Verify booking exists and user has access
-    await ensureBookingAccess(ctx, args.bookingId, args.userId);
+    await _ensureBookingAccess(ctx, args.bookingId, args.userId);
 
     const messages = await ctx.db
         .query("messages")

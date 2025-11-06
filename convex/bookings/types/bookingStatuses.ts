@@ -1,6 +1,6 @@
 import { v, Infer } from "convex/values";
 
-// Status validator and type
+export type BookingStatus = Infer<typeof bookingStatus>;
 export const bookingStatus = v.union(
     v.literal("pending"),
     v.literal("awaiting_payment"),
@@ -12,9 +12,7 @@ export const bookingStatus = v.union(
     v.literal("awaiting_reschedule"),
 );
 
-export type BookingStatus = Infer<typeof bookingStatus>;
-
-// Status filter groups
+export type ActiveStatusFilter = Infer<typeof activeStatusFilter>;
 export const activeStatusFilter = v.union(
     v.literal("pending"),
     v.literal("awaiting_reschedule"),
@@ -23,26 +21,23 @@ export const activeStatusFilter = v.union(
     v.literal("confirmed"),
 );
 
+export type PastStatusFilter = Infer<typeof pastStatusFilter>;
 export const pastStatusFilter = v.union(
     v.literal("completed"),
     v.literal("canceled"),
     v.literal("rejected"),
 );
 
-export type ActiveStatusFilter = Infer<typeof activeStatusFilter>;
-export type PastStatusFilter = Infer<typeof pastStatusFilter>;
-
-// Arrays of status values for filtering (can be safely imported in browser)
 export const ACTIVE_STATUSES: ActiveStatusFilter[] = [
     "pending",
     "awaiting_reschedule",
     "awaiting_payment",
     "processing_payment",
-    "confirmed"
-];
+    "confirmed",
+] as const;
 
 export const PAST_STATUSES: PastStatusFilter[] = [
     "completed",
     "canceled",
-    "rejected"
-];
+    "rejected",
+] as const;

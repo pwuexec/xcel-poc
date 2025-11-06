@@ -29,7 +29,7 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const createBooking = useMutation(api.schemas.bookings.createBooking);
+    const createBooking = useMutation(api.bookings.integrations.writes.createBookingMutation);
     const allUsers = useQuery(api.schemas.users.getAllUsers);
     const currentUser = useQuery(api.schemas.users.getMe);
 

@@ -1,7 +1,7 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
-import { handleLessonspaceOptions, createLessonspaceSession } from "./lessonspace";
-import { handleStripeWebhook } from "./stripe";
+import { createLessonspaceSession, handleLessonspaceOptions } from "./bookings/integrations/httpActions";
+import { handleStripeWebhook } from "./payments/integrations/httpActions";
 
 const http = httpRouter();
 

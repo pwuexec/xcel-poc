@@ -12,7 +12,7 @@ import {
     bookingPaymentSucceededEventMetadata,
     bookingPaymentFailedEventMetadata,
     bookingPaymentRefundedEventMetadata,
-} from "@/convex/model/bookings";
+} from "@/convex/bookings";
 
 // Infer types from validators
 type BookingEvent = Infer<typeof bookingEvent>;

@@ -14,17 +14,12 @@ import {
     FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import GithubIcon from "@/components/icons/GithubIcon";
 import GoogleIcon from "@/components/icons/GoogleIcon";
 
 const authProviders = [
     {
         name: "Google",
         icon: GoogleIcon
-    },
-    {
-        name: "GitHub",
-        icon: GithubIcon
     },
 ]
 
@@ -85,6 +80,25 @@ export function LoginForm({
                     </div>
                 )}
 
+                <Field>
+                    {authProviders.map((provider) => {
+                        const Icon = provider.icon;
+                        return (
+                            <Button
+                                key={provider.name}
+                                variant="outline"
+                                type="button"
+                                onClick={() => void signIn(provider.name.toLowerCase())}
+                            >
+                                <Icon className="h-5 w-5" />
+                                Login with {provider.name}
+                            </Button>
+                        );
+                    })}
+                </Field>
+
+                <FieldSeparator>Or continue with email</FieldSeparator>
+
                 {step === "signUp" && (
                     <Field>
                         <FieldLabel htmlFor="name">Full Name</FieldLabel>
@@ -143,23 +157,7 @@ export function LoginForm({
                     </Button>
                 </Field>
 
-                <FieldSeparator>Or continue with</FieldSeparator>
-
                 <Field>
-                    {authProviders.map((provider) => {
-                        const Icon = provider.icon;
-                        return (
-                            <Button
-                                key={provider.name}
-                                variant="outline"
-                                type="button"
-                                onClick={() => void signIn(provider.name.toLowerCase())}
-                            >
-                                <Icon className="h-5 w-5" />
-                                Login with {provider.name}
-                            </Button>
-                        );
-                    })}
                     <FieldDescription className="text-center">
                         {step === "signIn" ? (
                             <>
