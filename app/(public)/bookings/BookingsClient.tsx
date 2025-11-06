@@ -3,14 +3,13 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ACTIVE_STATUSES, PAST_STATUSES } from "@/convex/bookings/types/bookingStatuses";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePaginatedQuery, useMutation, useQuery } from "convex/react";
 import { useSearchParamsState } from "@/hooks/useSearchParamsState";
 import CreateBookingForm from "./_components/CreateBookingForm";
 import RescheduleBookingForm from "./_components/RescheduleBookingForm";
 import PaymentButton from "./_components/PaymentButton";
 import BookingChat from "./_components/BookingChat";
-import { getVideoCallUrl } from "./_components/VideoCall";
 import { FunctionReturnType } from "convex/server";
 import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
 import { Button } from "@/components/ui/button";
@@ -175,7 +174,7 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950">
+        <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950">
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
                 {/* Header */}
                 <div className="mb-8">
@@ -424,7 +423,7 @@ function RecurringBookingsSection() {
                                             className="h-12 w-12 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm"
                                         />
                                     ) : (
-                                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
+                                        <div className="h-12 w-12 rounded-full bg-linear-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
                                             <span className="text-lg font-bold text-zinc-700 dark:text-zinc-300">
                                                 {otherUser?.name?.[0]?.toUpperCase() || "?"}
                                             </span>
@@ -770,7 +769,7 @@ function BookingCard({ booking, toUser, fromUser, currentUser, unreadCount, onOp
                                     className="h-14 w-14 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm"
                                 />
                             ) : (
-                                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
+                                <div className="h-14 w-14 rounded-full bg-linear-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
                                     <span className="text-xl font-bold text-zinc-700 dark:text-zinc-300">
                                         {otherParty?.name?.[0]?.toUpperCase() || "?"}
                                     </span>
