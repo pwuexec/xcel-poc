@@ -53,37 +53,3 @@ export const handleStripeWebhook = httpAction(async (ctx, request) => {
         );
     }
 });
-
-/**
- * Handle Stripe checkout session creation (HTTP Action)
- * 
- * This is a thin HTTP wrapper that:
- * 1. Handles CORS headers
- * 2. Extracts the request body
- * 3. Delegates to the action for business logic (integrations/writes.ts)
- * 4. Returns the created checkout session info
- */
-export const handleStripeCheckout = httpAction(async (ctx, request) => {
-    const headers = {
-        "Content-Type": "application/json",
-    };
-
-    const body = await request.json();
-
-    try {
-        const session = await ctx.runAction(internal.payments.integrations.actions.createCheckoutSession, body);
-        return new Response(JSON.stringify(session), {
-            status: 200,
-            headers,
-        });
-    } catch (error: any) {
-        console.error("Error creating checkout session:", error);
-        return new Response(
-            JSON.stringify({ error: error.message || "Internal server error" }),
-            {
-                status: 500,
-                headers,
-            }
-        );
-    }
-})

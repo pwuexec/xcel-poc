@@ -1,7 +1,7 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
-import { createLessonspaceSession, handleLessonspaceOptions } from "./bookings/integrations/httpActions";
-import { handleStripeCheckout, handleStripeWebhook } from "./payments/integrations/httpActions";
+import { createLessonspaceSession } from "./bookings/integrations/httpActions";
+import { handleStripeWebhook } from "./payments/integrations/httpActions";
 
 const http = httpRouter();
 
@@ -20,13 +20,6 @@ http.route({
     path: "/stripe/webhook",
     method: "POST",
     handler: handleStripeWebhook,
-});
-
-// Stripe checkout
-http.route({
-    path: "/stripe/checkout",
-    method: "POST",
-    handler: handleStripeCheckout,
 });
 
 export default http;
