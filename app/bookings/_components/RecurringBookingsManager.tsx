@@ -39,12 +39,12 @@ export function RecurringBookingsManager({ tutorId, tutorName }: RecurringBookin
   const [hourUTC, setHourUTC] = useState<number>(14);
   const [minuteUTC, setMinuteUTC] = useState<number>(0);
 
-  const recurringRules = useQuery(api.schemas.recurringRules.getMyRecurringRules);
-  const createRule = useMutation(api.schemas.recurringRules.createRecurringRule);
-  const pauseRule = useMutation(api.schemas.recurringRules.pauseRecurringRule);
-  const resumeRule = useMutation(api.schemas.recurringRules.resumeRecurringRule);
-  const cancelRule = useMutation(api.schemas.recurringRules.cancelRecurringRule);
-  const deleteRule = useMutation(api.schemas.recurringRules.deleteRecurringRule);
+  const recurringRules = useQuery(api.recurringRules.integrations.reads.getMyRecurringRules);
+  const createRule = useMutation(api.recurringRules.integrations.writes.createRecurringRule);
+  const pauseRule = useMutation(api.recurringRules.integrations.writes.pauseRecurringRule);
+  const resumeRule = useMutation(api.recurringRules.integrations.writes.resumeRecurringRule);
+  const cancelRule = useMutation(api.recurringRules.integrations.writes.cancelRecurringRule);
+  const deleteRule = useMutation(api.recurringRules.integrations.writes.deleteRecurringRule);
 
   const handleCreateRule = async () => {
     try {
