@@ -3,6 +3,7 @@ import { Id } from "../../../_generated/dataModel";
 import { BookingType } from "../../types/bookingType";
 import { BOOKING_ERRORS } from "../../../constants/errors";
 import { _validateTutorStudentRelationship } from "../_validateTutorStudentRelationship";
+import { _validateBookingTimestamp } from "../_validateBookingTimestamp";
 import { _addBookingEventMutation } from "./_addBookingEventMutation";
 import { _getBookingEligibilityQuery } from "../queries/_getBookingEligibilityQuery";
 
@@ -31,6 +32,14 @@ export async function _createBookingMutation(
 
     // Determine booking type
     const bookingTypeValue = determineBookingType(args.bookingType, eligibility);
+
+    // Validate timestamp (not in past, no time conflicts)
+    await _validateBookingTimestamp(ctx, {
+        timestamp: args.timestamp,
+        fromUserId: args.fromUserId,
+        toUserId: args.toUserId,
+        bookingType: bookingTypeValue,
+    });
 
     // Create booking
     const bookingId = await ctx.db.insert("bookings", {

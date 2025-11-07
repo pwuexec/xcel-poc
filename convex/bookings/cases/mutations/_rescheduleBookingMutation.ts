@@ -3,6 +3,7 @@ import { Id } from "../../../_generated/dataModel";
 import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
 import { _isRole } from "../../../users/cases/_isRole";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
+import { _validateBookingTimestamp } from "../_validateBookingTimestamp";
 import { _addBookingEventMutation } from "./_addBookingEventMutation";
 
 export async function _rescheduleBookingMutation(
@@ -20,6 +21,16 @@ export async function _rescheduleBookingMutation(
     if (booking.status === "completed" || booking.status === "canceled" || booking.status === "rejected") {
         throw new Error("Cannot reschedule completed, canceled, or rejected bookings");
     }
+
+    // Validate new timestamp (not in past, no time conflicts)
+    // Exclude the current booking from conflict check
+    await _validateBookingTimestamp(ctx, {
+        timestamp: args.newTimestamp,
+        fromUserId: booking.fromUserId,
+        toUserId: booking.toUserId,
+        bookingType: booking.bookingType,
+        excludeBookingId: args.bookingId,
+    });
 
     const proposedBy = _isRole(currentUser, "tutor") ? "tutor" : "student";
 

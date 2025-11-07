@@ -2,8 +2,9 @@ import { v } from "convex/values";
 import { internalQuery, query } from "../../_generated/server";
 import { _verifyBookingAndParticipantsQuery } from "../cases/queries/_verifyBookingAndParticipantsQuery";
 import { _getUserBookingsPaginatedQuery } from "../cases/queries/_getUserBookingsPaginatedQuery";
-import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
+import { getCurrentUserIdOrThrow, getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 import { _getBookingEligibilityQuery } from "../cases/queries/_getBookingEligibilityQuery";
+import { _findAvailableTimeSlots } from "../cases/_findAvailableTimeSlots";
 import { paginationOptsValidator } from "convex/server";
 
 /**
@@ -53,6 +54,29 @@ export const getBookingEligibility = query({
         return await _getBookingEligibilityQuery(ctx, {
             fromUserId: currentUser._id,
             toUserId: args.otherUserId,
+        });
+    },
+});
+
+/**
+ * Get available time slots for booking
+ */
+export const getAvailableTimeSlots = query({
+    args: {
+        date: v.string(), // YYYY-MM-DD
+        toUserId: v.id("users"),
+        bookingType: v.union(v.literal("free"), v.literal("paid")),
+        excludeBookingId: v.optional(v.id("bookings")),
+    },
+    handler: async (ctx, args) => {
+        const fromUserId = await getCurrentUserIdOrThrow(ctx);
+        
+        return await _findAvailableTimeSlots(ctx, {
+            date: args.date,
+            fromUserId,
+            toUserId: args.toUserId,
+            bookingType: args.bookingType,
+            excludeBookingId: args.excludeBookingId,
         });
     },
 });

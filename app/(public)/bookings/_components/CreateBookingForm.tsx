@@ -5,19 +5,11 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { BOOKING_ERRORS } from "@/convex/constants/errors";
-import { CheckCircle2Icon, AlertCircleIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { DatePicker, TimeSlotPicker, formatBookingDateTime, isBookingDateTimeValid, ukDateTimeToUTC } from "./shared";
+import { UserSelector } from "./create-booking-form/UserSelector";
+import { BookingTypeDisplay } from "./create-booking-form/BookingTypeDisplay";
 
 interface CreateBookingFormProps {
     onSuccess?: () => void;
@@ -25,7 +17,7 @@ interface CreateBookingFormProps {
 
 export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps) {
     const [toUserId, setToUserId] = useState("");
-    const [date, setDate] = useState("");
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>();
     const [time, setTime] = useState("");
     const [bookingType, setBookingType] = useState<"free" | "paid" | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +31,19 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     const eligibility = useQuery(
         api.bookings.integrations.reads.getBookingEligibility,
         toUserId ? { otherUserId: toUserId as Id<"users"> } : "skip"
+    );
+
+    // Get available time slots when date and users are selected
+    const dateString = selectedDate?.toISOString().split('T')[0];
+    const timeSlots = useQuery(
+        api.bookings.integrations.reads.getAvailableTimeSlots,
+        toUserId && dateString && bookingType
+            ? {
+                date: dateString,
+                toUserId: toUserId as Id<"users">,
+                bookingType: bookingType,
+            }
+            : "skip"
     );
 
     // Determine if current user is a tutor
@@ -73,7 +78,7 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
         e.preventDefault();
         setError(null);
 
-        if (!toUserId || !date || !time) {
+        if (!toUserId || !selectedDate || !time) {
             setError("Please fill in all fields");
             return;
         }
@@ -83,11 +88,19 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
             return;
         }
 
+        // Validate that the booking is not in the past
+        if (!isBookingDateTimeValid(selectedDate, time)) {
+            setError("Cannot create a booking in the past. Please select a future date and time.");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            // Parse date and time as UK timezone (Europe/London)
-            // The input gives us local time, which for UK users is already in UK timezone
-            const timestamp = new Date(`${date}T${time}`).getTime();
+            // Frontend works in UK timezone (Europe/London)
+            // Server stores timestamps in UTC
+            // Convert UK date/time to UTC timestamp using helper
+            const timestamp = ukDateTimeToUTC(selectedDate, time);
+            
             await createBooking({
                 toUserId: toUserId as Id<"users">,
                 timestamp,
@@ -96,7 +109,7 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
 
             // Reset form
             setToUserId("");
-            setDate("");
+            setSelectedDate(undefined);
             setTime("");
             setBookingType(null);
 
@@ -120,93 +133,49 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-            <div className="grid w-full max-w-xl items-start gap-4">
-                <Alert variant="destructive">
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
+                <div className="grid w-full max-w-xl items-start gap-4">
+                    <Alert variant="destructive">
+                        <AlertTitle>Error</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                 </div>
             )}
 
-            <div className="space-y-2">
-                <Label htmlFor="toUserId">{selectLabel}</Label>
-                <Select value={toUserId} onValueChange={setToUserId}>
-                    <SelectTrigger>
-                        <SelectValue placeholder={selectPlaceholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {allUsers?.map((user) => (
-                            <SelectItem key={user._id} value={user._id}>
-                                {user.name || user.email || "Unknown User"}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
+            <UserSelector
+                value={toUserId}
+                onChange={setToUserId}
+                users={allUsers}
+                label={selectLabel}
+                placeholder={selectPlaceholder}
+            />
 
-            {/* Show booking type info/selector */}
             {eligibility && toUserId && (
-                <div className="space-y-2">
-                    <Label>Booking Type</Label>
-                    {eligibility.canCreateFreeBooking && !eligibility.canCreatePaidBooking && (
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <div className="flex items-center gap-2">
-                                <Badge className="bg-blue-600 text-white">Free Meeting</Badge>
-                                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                                    Free introductory session
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                    {!eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking && (
-                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                            <div className="flex items-center gap-2">
-                                <Badge className="bg-purple-600 text-white">Paid Session</Badge>
-                                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                                    Paid tutoring session
-                                </span>
-                            </div>
-                            <Alert className="mt-2">
-                                <CheckCircle2Icon className="h-4 w-4" />
-                                <AlertDescription className="text-sm">
-                                    You've completed your free meeting with this {isTutor ? "student" : "tutor"}. 
-                                    All new bookings will be paid sessions.
-                                </AlertDescription>
-                            </Alert>
-                        </div>
-                    )}
-                    {eligibility.hasActiveFreeBooking && (
-                        <Alert variant="destructive">
-                            <AlertCircleIcon className="h-4 w-4" />
-                            <AlertDescription className="text-sm">
-                                {BOOKING_ERRORS.FREE_MEETING_ACTIVE}
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                </div>
+                <BookingTypeDisplay eligibility={eligibility} isTutor={isTutor} />
             )}
 
-            <div className="space-y-2">
-                <Label htmlFor="date">Date (UK Time)</Label>
-                <Input
-                    id="date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
-                />
-            </div>
+            <DatePicker value={selectedDate} onChange={setSelectedDate} />
 
-            <div className="space-y-2">
-                <Label htmlFor="time">Time (UK Time)</Label>
-                <Input
-                    id="time"
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    required
-                />
-            </div>
+            <TimeSlotPicker
+                availableSlots={timeSlots?.availableSlots || []}
+                busySlots={timeSlots?.busySlots || []}
+                selectedTime={time}
+                onSelectTime={setTime}
+                isLoading={timeSlots === undefined && !!dateString && !!bookingType}
+            />
+
+            {selectedDate && time && (
+                <div className="p-3 bg-muted/50 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">
+                        Booking will be scheduled at{" "}
+                        <span className="font-medium text-foreground">
+                            {formatBookingDateTime(selectedDate, time)}
+                        </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        All times are in UK timezone (Europe/London)
+                    </p>
+                </div>
+            )}
 
             <div className="flex gap-3 pt-4">
                 <Button
