@@ -19,16 +19,18 @@ type LessonspaceSessionResult = {
  * This action:
  * 1. Verifies the booking exists and user is a participant
  * 2. Validates the lesson is within 10 minutes of start time
- * 3. Calls the Lessonspace API to create a session
- * 4. Returns the session details with launch URL
+ * 3. Calls the Lessonspace API to create a personalized session URL for the user
+ * 4. Returns the session details with launch URL unique to this user
  * 
- * Can be called from:
- * - Frontend via Convex client libraries
- * - HTTP endpoint (via cases/httpActions/lessonspace.ts)
+ * Each user (tutor and student) gets their own unique URL with appropriate permissions.
+ * Tutors are assigned as "leader" in the space.
+ * 
+ * Called directly from the frontend via Convex client libraries.
  * 
  * Architecture:
  * - **Space**: A persistent online classroom (identified by space ID)
  * - **Session**: The actual lesson time when users are connected
+ * - **Launch URL**: Unique per-user URL with personalized permissions
  */
 export const createLessonspaceSession = action({
     args: {

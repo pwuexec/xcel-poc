@@ -1,48 +1,43 @@
 "use client";
 
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+
 /**
- * Lessonspace Video Call Utility
- * 
- * Function to get a Lessonspace session URL for a booking.
+ * Hook to get a Lessonspace session URL for a booking.
+ * Each user gets their own personalized URL with appropriate permissions.
  */
+export function useVideoCall() {
+    const createSession = useAction(api.bookings.integrations.actions.createLessonspaceSession);
 
-interface GetVideoCallUrlParams {
-    bookingId: string;
-    userName: string;
-    userId: string;
-    userEmail: string;
-}
-
-export async function getVideoCallUrl({ bookingId, userName, userId, userEmail }: GetVideoCallUrlParams): Promise<string> {
-    try {
-        // Fetch Lessonspace session from backend
-        const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.replace("cloud", "site");
-        if (!convexUrl) {
-            throw new Error("Convex URL not configured");
+    const getVideoCallUrl = async ({ 
+        bookingId, 
+        userName, 
+        userId, 
+        userEmail 
+    }: {
+        bookingId: Id<"bookings">;
+        userName: string;
+        userId: Id<"users">;
+        userEmail: string;
+    }) => {
+        try {
+            const result = await createSession({
+                bookingId,
+                userId,
+                userName,
+                userEmail,
+            });
+            return result.launchUrl;
+        } catch (error) {
+            console.error("Failed to get video call URL:", error);
+            throw error;
         }
+    };
 
-        const response = await fetch(`${convexUrl}/lessonspace-session`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ bookingId, userId, userName, userEmail }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Failed to create session: ${response.status}`);
-        }
-
-        const { launchUrl } = await response.json();
-        return launchUrl;
-    } catch (error) {
-        console.error("Failed to get video call URL:", error);
-        throw error;
-    }
+    return { getVideoCallUrl };
 }
 
-// Legacy component export for backward compatibility
-export default function VideoCall() {
-    return null;
-}
 
 

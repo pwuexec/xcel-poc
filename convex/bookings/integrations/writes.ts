@@ -5,7 +5,6 @@ import { _rejectBookingMutation } from "../cases/mutations/_rejectBookingMutatio
 import { _cancelBookingMutation } from "../cases/mutations/_cancelBookingMutation";
 import { _rescheduleBookingMutation } from "../cases/mutations/_rescheduleBookingMutation";
 import { _completeBookingMutation } from "../cases/mutations/_completeBookingMutation";
-import { _addLessonSpaceUrlMutation } from "../cases/mutations/_addLessonSpaceUrlMutation";
 import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 import { _createBookingMutation } from "../cases/mutations/_createBookingMutation";
 
@@ -110,15 +109,5 @@ export const completeBookingMutation = mutation({
             bookingId: args.bookingId,
             userId: currentUser._id,
         });
-    },
-});
-
-export const addLessonSpaceUrl = internalMutation({
-    args: {
-        bookingId: v.id("bookings"),
-        lessonSpaceUrl: v.string(),
-    },
-    handler: async (ctx, args) => {
-        return await _addLessonSpaceUrlMutation(ctx, args);
     },
 });

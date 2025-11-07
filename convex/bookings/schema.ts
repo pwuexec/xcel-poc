@@ -11,7 +11,6 @@ export const bookings = defineTable({
     bookingType: v.union(v.literal("paid"), v.literal("free")),
     events: v.array(bookingEvent),
     lastActionByUserId: v.optional(v.id("users")),
-    lessonSpaceUrl: v.optional(v.string()),
 })
     // Indexes for pagination with descending timestamp order
     .index("by_fromUserId_timestamp", ["fromUserId", "timestamp"])
@@ -21,5 +20,5 @@ export const bookings = defineTable({
     // Indexes for querying bookings between two users
     .index("by_fromUserId_toUserId", ["fromUserId", "toUserId"])
     .index("by_toUserId_fromUserId", ["toUserId", "fromUserId"])
-    // Index for finding confirmed bookings by timestamp (for cron job to generate URLs)
+    // Index for status-based queries
     .index("by_status_timestamp", ["status", "timestamp"]);
