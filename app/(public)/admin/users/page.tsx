@@ -9,11 +9,11 @@ import { useRouter } from "next/navigation";
 type Role = "user" | "tutor" | "admin";
 
 export default function AdminUsersPage() {
-    const users = useQuery(api.schemas.admin.listAllUsers);
-    const currentUser = useQuery(api.schemas.users.getMe);
-    const updateUserRole = useMutation(api.schemas.admin.updateUserRole);
-    const updateUserName = useMutation(api.schemas.admin.updateUserName);
-    const createUser = useMutation(api.schemas.admin.createUser);
+    const users = useQuery(api.admin.integrations.reads.listAllUsers);
+    const currentUser = useQuery(api.users.integrations.reads.getMe);
+    const updateUserRole = useMutation(api.admin.integrations.writes.updateUserRole);
+    const updateUserName = useMutation(api.admin.integrations.writes.updateUserName);
+    const createUser = useMutation(api.admin.integrations.writes.createUser);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newUserName, setNewUserName] = useState("");
     const [newUserEmail, setNewUserEmail] = useState("");

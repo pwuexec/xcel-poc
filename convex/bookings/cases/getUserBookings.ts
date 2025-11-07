@@ -1,6 +1,7 @@
 import { QueryCtx } from "../../_generated/server";
 import { Id } from "../../_generated/dataModel";
-import { getUserByIdOrThrow, isRole } from "../../model/users";
+import { getUserByIdOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
+import { _isRole } from "../../users/cases/_isRole";
 import { BookingEvent } from "../types/bookingEvents";
 
 export async function getUserBookings(
@@ -8,7 +9,7 @@ export async function getUserBookings(
     userId: Id<"users">
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, userId);
-    const isTutor = isRole(currentUser, "tutor");
+    const isTutor = _isRole(currentUser, "tutor");
 
     // Use new indexes
     const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";

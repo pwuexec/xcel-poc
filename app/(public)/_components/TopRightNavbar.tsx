@@ -8,7 +8,7 @@ import Link from "next/link";
 export default function TopRightNavbar({
     preloadedCurrentUser,
 }: {
-    preloadedCurrentUser: Preloaded<typeof api.schemas.users.getMe>;
+    preloadedCurrentUser: Preloaded<typeof api.users.integrations.reads.getMe>;
 }) {
     const currentUser = usePreloadedQuery(preloadedCurrentUser);
     const { signOut } = useAuthActions();

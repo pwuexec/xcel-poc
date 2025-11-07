@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalQuery, query } from "../../_generated/server";
 import { _verifyBookingAndParticipantsQuery } from "../cases/queries/_verifyBookingAndParticipantsQuery";
 import { _getUserBookingsPaginatedQuery } from "../cases/queries/_getUserBookingsPaginatedQuery";
-import { getCurrentUserOrThrow } from "../../model/users";
+import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 import { _getBookingEligibilityQuery } from "../cases/queries/_getBookingEligibilityQuery";
 import { paginationOptsValidator } from "convex/server";
 

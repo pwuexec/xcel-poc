@@ -1,6 +1,6 @@
 import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
-import { getUserByIdOrThrow } from "../../../model/users";
+import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
 import { _getBookingOrThrow } from "../_getBookingOrThrow";
 
 /**

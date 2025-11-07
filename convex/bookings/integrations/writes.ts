@@ -6,7 +6,7 @@ import { _cancelBookingMutation } from "../cases/mutations/_cancelBookingMutatio
 import { _rescheduleBookingMutation } from "../cases/mutations/_rescheduleBookingMutation";
 import { _completeBookingMutation } from "../cases/mutations/_completeBookingMutation";
 import { _addLessonSpaceUrlMutation } from "../cases/mutations/_addLessonSpaceUrlMutation";
-import { getCurrentUserOrThrow } from "../../model/users";
+import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 import { _createBookingMutation } from "../cases/mutations/_createBookingMutation";
 
 /**

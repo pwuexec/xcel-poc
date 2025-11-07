@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function AdminDashboard() {
-    const currentUser = useQuery(api.schemas.users.getMe);
+    const currentUser = useQuery(api.users.integrations.reads.getMe);
     const router = useRouter();
 
     // Check if user is admin

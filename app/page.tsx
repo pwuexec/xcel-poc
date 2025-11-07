@@ -34,7 +34,7 @@ import DynamicSignInLink from "./_components/DynamicSignInButton";
 
 export default async function Home() {
     const preloadedCurrentUser = await preloadQuery(
-        api.schemas.users.getMe,
+        api.users.integrations.reads.getMe,
         {},
         { token: await convexAuthNextjsToken() })
 

@@ -18,7 +18,7 @@ export default function PaymentButton({
 }: PaymentButtonProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const currentUser = useQuery(api.schemas.users.getMe);
+    const currentUser = useQuery(api.users.integrations.reads.getMe);
     const createCheckoutSession = useAction(api.payments.integrations.actions.createCheckoutSession);
     
     const handlePayment = async () => {

@@ -18,11 +18,11 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName, 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const messages = useQuery(
-        api.schemas.messages.getBookingMessages,
+        api.messages.integrations.reads.getBookingMessages,
         isChatOpen ? { bookingId } : "skip"
     );
-    const sendMessage = useMutation(api.schemas.messages.sendMessage);
-    const markMessagesAsRead = useMutation(api.schemas.messages.markMessagesAsRead);
+    const sendMessage = useMutation(api.messages.integrations.writes.sendMessage);
+    const markMessagesAsRead = useMutation(api.messages.integrations.writes.markMessagesAsRead);
 
     // Auto-scroll when new messages arrive and chat is open
     useEffect(() => {

@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 export default function NavbarLinks({
     preloadedCurrentUser,
 }: {
-    preloadedCurrentUser: Preloaded<typeof api.schemas.users.getMe>;
+    preloadedCurrentUser: Preloaded<typeof api.users.integrations.reads.getMe>;
 }) {
     const currentUser = usePreloadedQuery(preloadedCurrentUser);
     const isAdmin = currentUser?.role === "admin";

@@ -1,7 +1,7 @@
 import { defineSchema } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
-import { users } from "./schemas/users";
-import { messages } from "./schemas/messages";
+import { users } from "./users/schema";
+import { messages } from "./messages/schema";
 import { recurringRules } from "./schemas/recurringRules";
 import { bookings } from "./bookings/schema";
 import { payments } from "./payments/schema";

@@ -1,6 +1,7 @@
 import { QueryCtx, MutationCtx } from "../../_generated/server";
 import { Id } from "../../_generated/dataModel";
-import { getUserByIdOrThrow, isRole } from "../../model/users";
+import { getUserByIdOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
+import { _isRole } from "../../users/cases/_isRole";
 
 export async function _validateTutorStudentRelationship(
     ctx: QueryCtx | MutationCtx,
@@ -10,8 +11,8 @@ export async function _validateTutorStudentRelationship(
     const fromUser = await getUserByIdOrThrow(ctx, fromUserId);
     const toUser = await getUserByIdOrThrow(ctx, toUserId);
 
-    const fromUserIsTutor = isRole(fromUser, "tutor");
-    const toUserIsTutor = isRole(toUser, "tutor");
+    const fromUserIsTutor = _isRole(fromUser, "tutor");
+    const toUserIsTutor = _isRole(toUser, "tutor");
 
     if (fromUserIsTutor && toUserIsTutor) {
         throw new Error("Tutors cannot book sessions with other tutors");

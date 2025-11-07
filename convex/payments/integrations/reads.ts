@@ -3,7 +3,7 @@ import { internalQuery, query } from "../../_generated/server";
 import { _getUserPaymentsQuery } from "../cases/queries/_getUserPaymentsQuery";
 import { _getPaymentByBookingIdQuery } from "../cases/queries/_getPaymentByBookingIdQuery";
 import { _getPaymentByStripeSessionIdQuery } from "../cases/queries/_getPaymentByStripeSessionIdQuery";
-import { getCurrentUserOrThrow } from "../../model/users";
+import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 
 /**
  * Public query to get all payments for the current user

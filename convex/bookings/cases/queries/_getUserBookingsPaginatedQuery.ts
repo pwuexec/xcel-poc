@@ -1,7 +1,8 @@
 import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { PaginationOptions } from "convex/server";
-import { getUserByIdOrThrow, isRole } from "../../../model/users";
+import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
+import { _isRole } from "../../../users/cases/_isRole";
 import { BookingEvent } from "../../types/bookingEvents";
 import { ACTIVE_STATUSES, PAST_STATUSES } from "../../types/bookingStatuses";
 
@@ -15,7 +16,7 @@ export async function _getUserBookingsPaginatedQuery(
     }
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, args.userId);
-    const isTutor = isRole(currentUser, "tutor");
+    const isTutor = _isRole(currentUser, "tutor");
 
     const indexName = isTutor ? "by_toUserId_timestamp" : "by_fromUserId_timestamp";
     const fieldName = isTutor ? "toUserId" : "fromUserId";

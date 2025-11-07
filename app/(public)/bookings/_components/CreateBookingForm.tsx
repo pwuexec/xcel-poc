@@ -32,8 +32,8 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
     const [error, setError] = useState<string | null>(null);
 
     const createBooking = useMutation(api.bookings.integrations.writes.createBookingMutation);
-    const allUsers = useQuery(api.schemas.users.getAllUsers);
-    const currentUser = useQuery(api.schemas.users.getMe);
+    const allUsers = useQuery(api.users.integrations.reads.getAllUsers);
+    const currentUser = useQuery(api.users.integrations.reads.getMe);
     
     // Get booking eligibility for selected user
     const eligibility = useQuery(

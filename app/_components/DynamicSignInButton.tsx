@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ComponentPropsWithoutRef } from "react";
 
 interface DynamicSignInLinkProps extends Omit<ComponentPropsWithoutRef<typeof Link>, "href"> {
-    preloadedCurrentUser: Preloaded<typeof api.schemas.users.getMe>;
+    preloadedCurrentUser: Preloaded<typeof api.users.integrations.reads.getMe>;
 }
 
 export default function DynamicSignInLink({

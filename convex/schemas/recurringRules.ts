@@ -1,7 +1,7 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { getCurrentUserOrThrow } from "../model/users";
+import { getCurrentUserOrThrow } from "../users/cases/queries/_getCurrentUserQuery";
 import * as RecurringRules from "../model/recurringRules";
 
 // Re-export validators and types from model

@@ -1,7 +1,8 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { Infer, v } from "convex/values";
-import { getUserByIdOrThrow, isRole } from "./users";
+import { getUserByIdOrThrow } from "../users/cases/queries/_getCurrentUserQuery";
+import { _isRole } from "../users/cases/_isRole";
 import { _validateTutorStudentRelationship } from "../bookings/cases/_validateTutorStudentRelationship";
 
 // Days of the week validator
@@ -32,7 +33,7 @@ export async function getUserRecurringRules(
     userId: Id<"users">
 ) {
     const currentUser = await getUserByIdOrThrow(ctx, userId);
-    const isTutor = isRole(currentUser, "tutor");
+    const isTutor = _isRole(currentUser, "tutor");
 
     // Use appropriate index based on user role
     const indexName = isTutor ? "by_toUserId" : "by_fromUserId";

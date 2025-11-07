@@ -1,6 +1,7 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
-import { getUserByIdOrThrow, isRole } from "../../../model/users";
+import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
+import { _isRole } from "../../../users/cases/_isRole";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
 import { _addBookingEvent } from "../_addBookingEvent";
 
@@ -20,7 +21,7 @@ export async function _rescheduleBookingMutation(
         throw new Error("Cannot reschedule completed, canceled, or rejected bookings");
     }
 
-    const proposedBy = isRole(currentUser, "tutor") ? "tutor" : "student";
+    const proposedBy = _isRole(currentUser, "tutor") ? "tutor" : "student";
 
     await ctx.db.patch(args.bookingId, {
         timestamp: args.newTimestamp,

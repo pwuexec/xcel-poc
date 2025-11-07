@@ -7,7 +7,7 @@ import NavbarLinks from "./NavbarLinks";
 
 export default async function Navbar() {
     const preloadedCurrentUser = await preloadQuery(
-        api.schemas.users.getMe,
+        api.users.integrations.reads.getMe,
         {},
         { token: await convexAuthNextjsToken() }
     );
