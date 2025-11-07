@@ -1,6 +1,7 @@
 import { MutationCtx } from "../../../_generated/server";
-import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
 import { PaymentStatus } from "../../types/paymentStatus";
+import { _markPaymentSucceededMutation } from "./_markPaymentSucceededMutation";
+import { _markPaymentFailedMutation } from "./_markPaymentFailedMutation";
 
 export async function _updatePaymentStatusMutation(
     ctx: MutationCtx,
@@ -25,37 +26,21 @@ export async function _updatePaymentStatusMutation(
         updatedAt: Date.now(),
     });
 
-    // Update booking status and add event based on payment status
+    // Update booking status and add event based on payment status using helper mutations
     if (args.status === "succeeded") {
-        await ctx.db.patch(payment.bookingId, {
-            status: "confirmed",
+        await _markPaymentSucceededMutation(ctx, {
+            bookingId: payment.bookingId,
+            userId: payment.userId,
+            amount: payment.amount,
+            currency: payment.currency,
+            stripePaymentIntentId: args.stripePaymentIntentId!,
         });
-
-        await _addBookingEvent(
-            ctx,
-            payment.bookingId,
-            payment.userId,
-            "payment_succeeded",
-            {
-                amount: payment.amount,
-                currency: payment.currency,
-                stripePaymentIntentId: args.stripePaymentIntentId!,
-            }
-        );
     } else if (args.status === "failed") {
-        await ctx.db.patch(payment.bookingId, {
-            status: "awaiting_payment",
+        await _markPaymentFailedMutation(ctx, {
+            bookingId: payment.bookingId,
+            userId: payment.userId,
+            reason: "Payment processing failed",
         });
-
-        await _addBookingEvent(
-            ctx,
-            payment.bookingId,
-            payment.userId,
-            "payment_failed",
-            {
-                reason: "Payment processing failed",
-            }
-        );
     } else if (args.status === "canceled") {
         await ctx.db.patch(payment.bookingId, {
             status: "awaiting_payment",

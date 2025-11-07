@@ -1,9 +1,13 @@
-import { MutationCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { _addBookingEvent } from "./_addBookingEvent";
-import { _getBookingOrThrow } from "./_getBookingOrThrow";
+import { MutationCtx } from "../../../_generated/server";
+import { Id } from "../../../_generated/dataModel";
+import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
+import { _getBookingOrThrow } from "../../../bookings/cases/_getBookingOrThrow";
 
-export async function markPaymentFailed(
+/**
+ * Helper mutation to mark payment as failed
+ * Updates booking status back to awaiting_payment and records the failure event
+ */
+export async function _markPaymentFailedMutation(
     ctx: MutationCtx,
     args: {
         bookingId: Id<"bookings">;

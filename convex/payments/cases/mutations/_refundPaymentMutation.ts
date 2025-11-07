@@ -1,9 +1,13 @@
-import { MutationCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { _addBookingEvent } from "./_addBookingEvent";
-import { _ensureBookingAccess } from "./_ensureBookingAccess";
+import { MutationCtx } from "../../../_generated/server";
+import { Id } from "../../../_generated/dataModel";
+import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
+import { _ensureBookingAccess } from "../../../bookings/cases/_ensureBookingAccess";
 
-export async function refundPayment(
+/**
+ * Helper mutation to refund a payment
+ * Records the refund event and cancels the booking if it was confirmed
+ */
+export async function _refundPaymentMutation(
     ctx: MutationCtx,
     args: {
         bookingId: Id<"bookings">;

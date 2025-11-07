@@ -73,7 +73,7 @@ export const createCheckoutSession = action({
         });
 
         // Create payment record in Convex
-        await ctx.runMutation(internal.payments.integrations.mutations.createPaymentInternal, {
+        await ctx.runMutation(internal.payments.integrations.writes.createPaymentInternal, {
             bookingId: args.bookingId,
             userId: args.userId,
             stripeSessionId: session.id,
@@ -114,7 +114,7 @@ export const processStripeWebhook = internalAction({
             case "checkout.session.completed": {
                 const session = event.data.object as Stripe.Checkout.Session;
 
-                await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                await ctx.runMutation(internal.payments.integrations.writes.updatePaymentStatus, {
                     stripeSessionId: session.id,
                     stripePaymentIntentId: session.payment_intent as string,
                     status: "succeeded",
@@ -127,7 +127,7 @@ export const processStripeWebhook = internalAction({
             case "checkout.session.expired": {
                 const session = event.data.object as Stripe.Checkout.Session;
 
-                await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                await ctx.runMutation(internal.payments.integrations.writes.updatePaymentStatus, {
                     stripeSessionId: session.id,
                     status: "canceled",
                 });
@@ -146,7 +146,7 @@ export const processStripeWebhook = internalAction({
                 });
 
                 if (sessions.data.length > 0) {
-                    await ctx.runMutation(internal.payments.integrations.mutations.updatePaymentStatus, {
+                    await ctx.runMutation(internal.payments.integrations.writes.updatePaymentStatus, {
                         stripeSessionId: sessions.data[0].id,
                         stripePaymentIntentId: paymentIntent.id,
                         status: "failed",
@@ -169,7 +169,7 @@ export const processStripeWebhook = internalAction({
 
                     if (sessions.data.length > 0) {
                         await ctx.runMutation(
-                            internal.payments.integrations.mutations.updatePaymentStatus,
+                            internal.payments.integrations.writes.updatePaymentStatus,
                             {
                                 stripeSessionId: sessions.data[0].id,
                                 stripePaymentIntentId: charge.payment_intent as string,

@@ -1,9 +1,13 @@
-import { MutationCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { _addBookingEvent } from "./_addBookingEvent";
-import { _getBookingOrThrow } from "./_getBookingOrThrow";
+import { MutationCtx } from "../../../_generated/server";
+import { Id } from "../../../_generated/dataModel";
+import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
+import { _getBookingOrThrow } from "../../../bookings/cases/_getBookingOrThrow";
 
-export async function markPaymentSucceeded(
+/**
+ * Helper mutation to mark payment as succeeded
+ * Updates booking status to confirmed and records the payment success event
+ */
+export async function _markPaymentSucceededMutation(
     ctx: MutationCtx,
     args: {
         bookingId: Id<"bookings">;

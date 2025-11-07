@@ -1,9 +1,13 @@
-import { MutationCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { _addBookingEvent } from "./_addBookingEvent";
-import { _ensureBookingAccess } from "./_ensureBookingAccess";
+import { MutationCtx } from "../../../_generated/server";
+import { Id } from "../../../_generated/dataModel";
+import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
+import { _ensureBookingAccess } from "../../../bookings/cases/_ensureBookingAccess";
 
-export async function initiatePayment(
+/**
+ * Helper mutation to initiate payment for a booking
+ * Updates booking status to processing_payment and records the payment initiation event
+ */
+export async function _initiatePaymentMutation(
     ctx: MutationCtx,
     args: {
         bookingId: Id<"bookings">;
