@@ -16,7 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { BOOKING_ERRORS } from "@/convex/constants/errors";
-import { CheckCircle2Icon, PopcornIcon, AlertCircleIcon, InfoIcon } from "lucide-react";
+import { CheckCircle2Icon, AlertCircleIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface CreateBookingFormProps {
@@ -148,42 +148,12 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
             {eligibility && toUserId && (
                 <div className="space-y-2">
                     <Label>Booking Type</Label>
-                    {eligibility.canCreateFreeBooking && eligibility.canCreatePaidBooking && (
-                        <>
-                            <Select 
-                                value={bookingType || ""} 
-                                onValueChange={(value) => setBookingType(value as "free" | "paid")}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select booking type..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="free">
-                                        Free Meeting (Introductory)
-                                    </SelectItem>
-                                    <SelectItem value="paid">
-                                        Paid Session
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Alert>
-                                <InfoIcon className="h-4 w-4" />
-                                <AlertDescription className="text-sm">
-                                    You've completed a free meeting with this {isTutor ? "student" : "tutor"}. 
-                                    You can book another free meeting or start paid sessions.
-                                </AlertDescription>
-                            </Alert>
-                        </>
-                    )}
                     {eligibility.canCreateFreeBooking && !eligibility.canCreatePaidBooking && (
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                             <div className="flex items-center gap-2">
                                 <Badge className="bg-blue-600 text-white">Free Meeting</Badge>
                                 <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                                    {eligibility.isFirstBooking 
-                                        ? "First booking with this " + (isTutor ? "student" : "tutor")
-                                        : "Free introductory session"
-                                    }
+                                    Free introductory session
                                 </span>
                             </div>
                         </div>
@@ -197,10 +167,10 @@ export default function CreateBookingForm({ onSuccess }: CreateBookingFormProps)
                                 </span>
                             </div>
                             <Alert className="mt-2">
-                                <InfoIcon className="h-4 w-4" />
+                                <CheckCircle2Icon className="h-4 w-4" />
                                 <AlertDescription className="text-sm">
-                                    You've completed a free meeting with this {isTutor ? "student" : "tutor"}. 
-                                    New bookings will be paid sessions.
+                                    You've completed your free meeting with this {isTutor ? "student" : "tutor"}. 
+                                    All new bookings will be paid sessions.
                                 </AlertDescription>
                             </Alert>
                         </div>

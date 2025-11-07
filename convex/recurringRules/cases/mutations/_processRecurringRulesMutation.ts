@@ -45,7 +45,7 @@ export async function _processRecurringRulesMutation(ctx: MutationCtx) {
             );
 
             // Create the booking
-            const bookingId = await _createBookingMutation(ctx, {
+            await _createBookingMutation(ctx, {
                 fromUserId: rule.fromUserId,
                 toUserId: rule.toUserId,
                 timestamp: nextTimestamp,
@@ -57,7 +57,7 @@ export async function _processRecurringRulesMutation(ctx: MutationCtx) {
             });
 
             console.log(
-                `Created booking ${bookingId} from recurring rule ${rule._id} for ${new Date(nextTimestamp).toISOString()}`
+                `Created booking from recurring rule ${rule._id} for ${new Date(nextTimestamp).toISOString()}`
             );
 
             processedCount++;

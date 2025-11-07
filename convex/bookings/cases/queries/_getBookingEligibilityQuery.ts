@@ -1,9 +1,17 @@
 import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
+import { ACTIVE_STATUSES } from "../../types/bookingStatuses";
 
 /**
  * Helper query to check booking eligibility between two users
- * Uses efficient index queries to minimize database reads
+ * Uses efficient index queries to minimize database reads and bandwidth
+ * 
+ * Business Rules:
+ * 1. First booking between tutor-student must always be FREE
+ * 2. Cannot have multiple active free bookings
+ * 3. After completing a free meeting, only PAID bookings are allowed
+ * 4. Free meetings can only be rebooked if they were CANCELED or REJECTED
+ * 5. Cannot create paid bookings until the free meeting is completed
  */
 export async function _getBookingEligibilityQuery(
     ctx: QueryCtx,
@@ -12,169 +20,124 @@ export async function _getBookingEligibilityQuery(
         toUserId: Id<"users">;
     }
 ) {
-    // Check for active free meeting (from -> to)
-    const activeFreeFromTo = await ctx.db
-        .query("bookings")
-        .withIndex("by_fromUserId_toUserId", (q) =>
-            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.or(
-                    q.eq(q.field("status"), "pending"),
-                    q.eq(q.field("status"), "awaiting_reschedule"),
-                    q.eq(q.field("status"), "awaiting_payment"),
-                    q.eq(q.field("status"), "processing_payment"),
-                    q.eq(q.field("status"), "confirmed")
-                )
-            )
-        )
-        .first();
+    // Check for active free bookings - use index to filter, avoiding .filter()
+    // Check all active statuses in parallel
+    const activeChecks = await Promise.all(
+        ACTIVE_STATUSES.map(async (status) => {
+            const [fromTo, toFrom] = await Promise.all([
+                ctx.db
+                    .query("bookings")
+                    .withIndex("by_fromUserId_toUserId_bookingType_status", (q) =>
+                        q.eq("fromUserId", args.fromUserId)
+                         .eq("toUserId", args.toUserId)
+                         .eq("bookingType", "free")
+                         .eq("status", status)
+                    )
+                    .first(),
+                ctx.db
+                    .query("bookings")
+                    .withIndex("by_toUserId_fromUserId_bookingType_status", (q) =>
+                        q.eq("toUserId", args.fromUserId)
+                         .eq("fromUserId", args.toUserId)
+                         .eq("bookingType", "free")
+                         .eq("status", status)
+                    )
+                    .first()
+            ]);
+            return fromTo || toFrom;
+        })
+    );
 
-    // Check for active free meeting (to -> from)
-    const activeFreeToFrom = await ctx.db
-        .query("bookings")
-        .withIndex("by_toUserId_fromUserId", (q) =>
-            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.or(
-                    q.eq(q.field("status"), "pending"),
-                    q.eq(q.field("status"), "awaiting_reschedule"),
-                    q.eq(q.field("status"), "awaiting_payment"),
-                    q.eq(q.field("status"), "processing_payment"),
-                    q.eq(q.field("status"), "confirmed")
-                )
-            )
-        )
-        .first();
-
-    const hasActiveFreeBooking = !!(activeFreeFromTo || activeFreeToFrom);
-
-    // If there's an active free meeting, we can return early
-    if (hasActiveFreeBooking) {
+    if (activeChecks.some(result => result)) {
         return {
             canCreateFreeBooking: false,
             canCreatePaidBooking: false,
             hasActiveFreeBooking: true,
-            hasCompletedFreeMeeting: false,
-            isFirstBooking: false,
         };
     }
 
-    // Check for completed free meeting (from -> to)
-    const completedFreeFromTo = await ctx.db
-        .query("bookings")
-        .withIndex("by_fromUserId_toUserId", (q) =>
-            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.eq(q.field("status"), "completed")
+    // Check for completed free meeting
+    const [completedFromTo, completedToFrom] = await Promise.all([
+        ctx.db
+            .query("bookings")
+            .withIndex("by_fromUserId_toUserId_bookingType_status", (q) =>
+                q.eq("fromUserId", args.fromUserId)
+                 .eq("toUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "completed")
             )
-        )
-        .first();
-
-    // Check for completed free meeting (to -> from)
-    const completedFreeToFrom = await ctx.db
-        .query("bookings")
-        .withIndex("by_toUserId_fromUserId", (q) =>
-            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.eq(q.field("status"), "completed")
+            .first(),
+        ctx.db
+            .query("bookings")
+            .withIndex("by_toUserId_fromUserId_bookingType_status", (q) =>
+                q.eq("toUserId", args.fromUserId)
+                 .eq("fromUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "completed")
             )
-        )
-        .first();
+            .first()
+    ]);
 
-    const hasCompletedFreeMeeting = !!(completedFreeFromTo || completedFreeToFrom);
-
-    // If there's a completed free meeting, user can create paid bookings
-    if (hasCompletedFreeMeeting) {
+    if (completedFromTo || completedToFrom) {
         return {
-            canCreateFreeBooking: true, // Can still do another free meeting if they want
+            canCreateFreeBooking: false,
             canCreatePaidBooking: true,
             hasActiveFreeBooking: false,
-            hasCompletedFreeMeeting: true,
-            isFirstBooking: false,
         };
     }
 
-    // Check for cancelled/rejected free meeting (from -> to)
-    const cancelledFreeFromTo = await ctx.db
-        .query("bookings")
-        .withIndex("by_fromUserId_toUserId", (q) =>
-            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.or(
-                    q.eq(q.field("status"), "canceled"),
-                    q.eq(q.field("status"), "rejected")
-                )
+    // Check for canceled/rejected free meetings
+    const [canceledFromTo, canceledToFrom, rejectedFromTo, rejectedToFrom] = await Promise.all([
+        ctx.db
+            .query("bookings")
+            .withIndex("by_fromUserId_toUserId_bookingType_status", (q) =>
+                q.eq("fromUserId", args.fromUserId)
+                 .eq("toUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "canceled")
             )
-        )
-        .first();
-
-    // Check for cancelled/rejected free meeting (to -> from)
-    const cancelledFreeToFrom = await ctx.db
-        .query("bookings")
-        .withIndex("by_toUserId_fromUserId", (q) =>
-            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
-        )
-        .filter((q) => 
-            q.and(
-                q.eq(q.field("bookingType"), "free"),
-                q.or(
-                    q.eq(q.field("status"), "canceled"),
-                    q.eq(q.field("status"), "rejected")
-                )
+            .first(),
+        ctx.db
+            .query("bookings")
+            .withIndex("by_toUserId_fromUserId_bookingType_status", (q) =>
+                q.eq("toUserId", args.fromUserId)
+                 .eq("fromUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "canceled")
             )
-        )
-        .first();
+            .first(),
+        ctx.db
+            .query("bookings")
+            .withIndex("by_fromUserId_toUserId_bookingType_status", (q) =>
+                q.eq("fromUserId", args.fromUserId)
+                 .eq("toUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "rejected")
+            )
+            .first(),
+        ctx.db
+            .query("bookings")
+            .withIndex("by_toUserId_fromUserId_bookingType_status", (q) =>
+                q.eq("toUserId", args.fromUserId)
+                 .eq("fromUserId", args.toUserId)
+                 .eq("bookingType", "free")
+                 .eq("status", "rejected")
+            )
+            .first()
+    ]);
 
-    const hasCancelledOrRejectedFreeBooking = !!(cancelledFreeFromTo || cancelledFreeToFrom);
-    if (hasCancelledOrRejectedFreeBooking) {
+    if (canceledFromTo || canceledToFrom || rejectedFromTo || rejectedToFrom) {
         return {
             canCreateFreeBooking: true,
             canCreatePaidBooking: false,
             hasActiveFreeBooking: false,
-            hasCompletedFreeMeeting: false,
-            isFirstBooking: false,
         };
     }
 
-    // Check if any booking exists at all (from -> to)
-    const anyBookingFromTo = await ctx.db
-        .query("bookings")
-        .withIndex("by_fromUserId_toUserId", (q) =>
-            q.eq("fromUserId", args.fromUserId).eq("toUserId", args.toUserId)
-        )
-        .first();
-
-    // Check if any booking exists at all (to -> from)
-    const anyBookingToFrom = await ctx.db
-        .query("bookings")
-        .withIndex("by_toUserId_fromUserId", (q) =>
-            q.eq("toUserId", args.fromUserId).eq("fromUserId", args.toUserId)
-        )
-        .first();
-
-    const isFirstBooking = !anyBookingFromTo && !anyBookingToFrom;
-
-    // First booking - only free is allowed
+    // No free bookings exist at all - this is the first booking
     return {
-        canCreateFreeBooking: isFirstBooking,
+        canCreateFreeBooking: true,
         canCreatePaidBooking: false,
         hasActiveFreeBooking: false,
-        hasCompletedFreeMeeting: false,
-        isFirstBooking: true,
     };
 }

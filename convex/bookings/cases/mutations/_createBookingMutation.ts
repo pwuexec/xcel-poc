@@ -1,7 +1,6 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { BookingType } from "../../types/bookingType";
-import { ACTIVE_STATUSES } from "../../types/bookingStatuses";
 import { BOOKING_ERRORS } from "../../../constants/errors";
 import { _validateTutorStudentRelationship } from "../_validateTutorStudentRelationship";
 import { _addBookingEventMutation } from "./_addBookingEventMutation";
@@ -13,47 +12,27 @@ export async function _createBookingMutation(
         fromUserId: Id<"users">;
         toUserId: Id<"users">;
         timestamp: number;
-        bookingType?: BookingType; // Optional: allow explicit booking type specification
+        bookingType?: BookingType;
     }
 ) {
+    // Validate tutor-student relationship
     await _validateTutorStudentRelationship(ctx, args.fromUserId, args.toUserId);
 
-    // Use the efficient eligibility query helper
+    // Check booking eligibility
     const eligibility = await _getBookingEligibilityQuery(ctx, {
         fromUserId: args.fromUserId,
         toUserId: args.toUserId,
     });
 
-    // Check for active free meeting
+    // Early return: active free booking exists
     if (eligibility.hasActiveFreeBooking) {
         throw new Error(BOOKING_ERRORS.FREE_MEETING_ACTIVE);
     }
 
     // Determine booking type
-    let bookingTypeValue: BookingType;
-    
-    if (args.bookingType) {
-        // Explicit booking type provided - validate it
-        if (args.bookingType === "paid" && !eligibility.canCreatePaidBooking) {
-            throw new Error("Cannot create a paid booking without a completed free meeting first");
-        }
-        
-        if (args.bookingType === "free" && !eligibility.canCreateFreeBooking) {
-            throw new Error("Cannot create another free booking at this time");
-        }
-        
-        bookingTypeValue = args.bookingType;
-    } else {
-        // Auto-determine booking type based on eligibility
-        if (eligibility.isFirstBooking || (!eligibility.hasCompletedFreeMeeting && eligibility.canCreateFreeBooking)) {
-            bookingTypeValue = "free";
-        } else if (eligibility.hasCompletedFreeMeeting) {
-            bookingTypeValue = "paid";
-        } else {
-            throw new Error("Unable to determine booking type");
-        }
-    }
+    const bookingTypeValue = determineBookingType(args.bookingType, eligibility);
 
+    // Create booking
     const bookingId = await ctx.db.insert("bookings", {
         fromUserId: args.fromUserId,
         toUserId: args.toUserId,
@@ -68,6 +47,50 @@ export async function _createBookingMutation(
     await _addBookingEventMutation(ctx, bookingId, args.fromUserId, "created", {
         scheduledTime: args.timestamp,
     });
+}
 
-    return bookingId;
+/**
+ * Determine booking type based on explicit type or eligibility
+ * Extracted for readability and testability
+ */
+function determineBookingType(
+    explicitType: BookingType | undefined,
+    eligibility: {
+        canCreateFreeBooking: boolean;
+        canCreatePaidBooking: boolean;
+        hasActiveFreeBooking: boolean;
+    }
+): BookingType {
+    // Explicit type provided - validate it
+    if (explicitType === "free") {
+        if (!eligibility.canCreateFreeBooking) {
+            throw new Error(
+                "Cannot create a free booking. " +
+                "You have already completed a free meeting with this user. " +
+                "Only paid bookings are allowed."
+            );
+        }
+        return "free";
+    }
+
+    if (explicitType === "paid") {
+        if (!eligibility.canCreatePaidBooking) {
+            throw new Error(
+                "Cannot create a paid booking without completing a free meeting first. " +
+                "The first booking must be a free introductory session."
+            );
+        }
+        return "paid";
+    }
+
+    // Auto-determine based on eligibility
+    if (eligibility.canCreateFreeBooking) {
+        return "free";
+    }
+
+    if (eligibility.canCreatePaidBooking) {
+        return "paid";
+    }
+
+    throw new Error("Unable to determine booking type. Please contact support.");
 }

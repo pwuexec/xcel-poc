@@ -35,6 +35,4 @@ export async function _completeBookingMutation(
     await _addBookingEventMutation(ctx, args.bookingId, args.userId, "completed", {
         completedAt: Date.now(),
     });
-
-    return booking;
 }

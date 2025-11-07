@@ -17,8 +17,8 @@ export const bookings = defineTable({
     .index("by_toUserId_timestamp", ["toUserId", "timestamp"])
     .index("by_fromUserId_status_timestamp", ["fromUserId", "status", "timestamp"])
     .index("by_toUserId_status_timestamp", ["toUserId", "status", "timestamp"])
-    // Indexes for querying bookings between two users
-    .index("by_fromUserId_toUserId", ["fromUserId", "toUserId"])
-    .index("by_toUserId_fromUserId", ["toUserId", "fromUserId"])
+    // Indexes for querying bookings between two users with status and type
+    .index("by_fromUserId_toUserId_bookingType_status", ["fromUserId", "toUserId", "bookingType", "status"])
+    .index("by_toUserId_fromUserId_bookingType_status", ["toUserId", "fromUserId", "bookingType", "status"])
     // Index for status-based queries
     .index("by_status_timestamp", ["status", "timestamp"]);
