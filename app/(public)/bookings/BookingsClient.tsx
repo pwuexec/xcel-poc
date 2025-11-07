@@ -635,11 +635,16 @@ function BookingCard({ booking, toUser, fromUser, currentUser, unreadCount, onOp
     // Show pay button if awaiting_payment AND not a tutor AND not already paid AND booking is paid type
     const canPay = booking.status === "awaiting_payment" && currentUser.role !== "tutor" && !isPaid && booking.bookingType === "paid";
     
-    // Can join video call if booking is confirmed and within 10 minutes of start time
+    // Can join video call if booking is confirmed and within the allowed time window
+    // Time window: 10 minutes before the lesson starts to 1 hour after it starts
     const now = Date.now();
     const tenMinutesInMs = 10 * 60 * 1000;
+    const oneHourInMs = 60 * 60 * 1000;
     const timeDifference = booking.timestamp - now;
-    const canJoinVideoCall = booking.status === "confirmed" && timeDifference <= tenMinutesInMs && timeDifference > -60 * 60 * 1000; // Within 10 min before to 1 hour after
+    const canJoinVideoCall = 
+        booking.status === "confirmed" && 
+        timeDifference <= tenMinutesInMs &&  // Not more than 10 minutes before
+        timeDifference > -oneHourInMs;        // Not more than 1 hour after
 
     // Button factory for cleaner action button rendering
     type ActionButton = {

@@ -18,12 +18,17 @@ type LessonspaceSessionResult = {
  * 
  * This action:
  * 1. Verifies the booking exists and user is a participant
- * 2. Validates the lesson is within 10 minutes of start time
+ * 2. Validates the lesson is within the allowed time window (10 min before to 1 hour after)
  * 3. Calls the Lessonspace API to create a personalized session URL for the user
  * 4. Returns the session details with launch URL unique to this user
  * 
  * Each user (tutor and student) gets their own unique URL with appropriate permissions.
  * Tutors are assigned as "leader" in the space.
+ * 
+ * Time window restrictions:
+ * - Can join: Starting 10 minutes before the scheduled time
+ * - Can join: Up to 1 hour after the scheduled start time
+ * - Cannot join: Before 10 minutes prior or after 1 hour has passed
  * 
  * Called directly from the frontend via Convex client libraries.
  * 
@@ -49,11 +54,14 @@ export const createLessonspaceSession = action({
             }
         );
 
-        // Validate that the lesson is within 10 minutes of start time
+        // Validate that the lesson is within the allowed time window
+        // Can join: 10 minutes before start time until 1 hour after start time
         const now = Date.now();
         const tenMinutesInMs = 10 * 60 * 1000;
+        const oneHourInMs = 60 * 60 * 1000;
         const timeDifference = bookingData.booking.timestamp - now;
 
+        // Too early - more than 10 minutes before the lesson
         if (timeDifference > tenMinutesInMs) {
             const minutesUntilStart = Math.ceil(timeDifference / (60 * 1000));
             const availableAt = bookingData.booking.timestamp - tenMinutesInMs;
@@ -63,6 +71,18 @@ export const createLessonspaceSession = action({
                     code: "LESSON_NOT_AVAILABLE",
                     message: `You can join the lesson starting 10 minutes before the scheduled time. The lesson starts in ${minutesUntilStart} minutes.`,
                     availableAt,
+                })
+            );
+        }
+
+        // Too late - more than 1 hour after the lesson started
+        if (timeDifference < -oneHourInMs) {
+            const hoursAfterStart = Math.abs(Math.floor(timeDifference / oneHourInMs));
+            
+            throw new Error(
+                JSON.stringify({
+                    code: "LESSON_EXPIRED",
+                    message: `This lesson session has expired. You can only join within 1 hour after the scheduled start time. This lesson started ${hoursAfterStart} hour(s) ago.`,
                 })
             );
         }

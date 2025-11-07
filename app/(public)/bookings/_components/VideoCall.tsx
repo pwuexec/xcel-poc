@@ -38,6 +38,3 @@ export function useVideoCall() {
 
     return { getVideoCallUrl };
 }
-
-
-
