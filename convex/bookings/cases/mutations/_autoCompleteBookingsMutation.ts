@@ -1,11 +1,12 @@
-import { MutationCtx } from "../../_generated/server";
-import { markBookingAsCompleted } from "./markBookingAsCompleted.js";
+import { Id } from "../../../_generated/dataModel";
+import { MutationCtx } from "../../../_generated/server";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 
 /**
  * Business logic to auto-complete bookings that have finished
  * Checks for confirmed bookings that have passed their scheduled time
  */
-export async function autoCompleteBookingsCase(ctx: MutationCtx) {
+export async function _autoCompleteBookingsMutation(ctx: MutationCtx) {
     const now = Date.now();
     
     // Assume a booking session lasts 1 hour (configurable)
@@ -58,4 +59,31 @@ export async function autoCompleteBookingsCase(ctx: MutationCtx) {
         skippedCount,
         totalChecked: confirmedBookings.length,
     };
+}
+
+async function markBookingAsCompleted(
+    ctx: MutationCtx,
+    bookingId: Id<"bookings">
+) {
+    const booking = await ctx.db.get(bookingId);
+    if (!booking) {
+        return null; // Booking no longer exists
+    }
+
+    // Only mark as completed if it's currently confirmed
+    if (booking.status !== "confirmed") {
+        return null;
+    }
+
+    // Update status to completed
+    await ctx.db.patch(bookingId, {
+        status: "completed",
+    });
+
+    // Add completion event - use the tutor's ID as the actor
+    await _addBookingEventMutation(ctx, bookingId, booking.toUserId, "completed", {
+        completedAt: Date.now(),
+    });
+
+    return booking;
 }

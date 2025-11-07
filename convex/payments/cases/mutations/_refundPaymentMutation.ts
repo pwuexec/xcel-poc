@@ -1,6 +1,6 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
-import { _addBookingEvent } from "../../../bookings/cases/_addBookingEvent";
+import { _addBookingEventMutation } from "../../../bookings/cases/mutations/_addBookingEventMutation";
 import { _ensureBookingAccess } from "../../../bookings/cases/_ensureBookingAccess";
 
 /**
@@ -29,7 +29,7 @@ export async function _refundPaymentMutation(
     }
 
     // Add payment refunded event
-    await _addBookingEvent(ctx, args.bookingId, args.userId, "payment_refunded", {
+    await _addBookingEventMutation(ctx, args.bookingId, args.userId, "payment_refunded", {
         amount: args.amount,
         currency: args.currency,
         stripePaymentIntentId: args.stripePaymentIntentId,

@@ -1,8 +1,8 @@
-import { MutationCtx } from "../../_generated/server";
-import { Id } from "../../_generated/dataModel";
-import { BookingEvent } from "../types/bookingEvents";
+import { MutationCtx } from "../../../_generated/server";
+import { Id } from "../../../_generated/dataModel";
+import { BookingEvent } from "../../types/bookingEvents";
 
-export async function _addBookingEvent(
+export async function _addBookingEventMutation(
     ctx: MutationCtx,
     bookingId: Id<"bookings">,
     userId: Id<"users">,

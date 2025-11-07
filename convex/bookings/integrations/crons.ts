@@ -1,5 +1,5 @@
 import { internalMutation } from "../../_generated/server";
-import { autoCompleteBookingsCase } from "../cases/autoCompleteBookingsCase";
+import { _autoCompleteBookingsMutation } from "../cases/mutations/_autoCompleteBookingsMutation";
 
 /**
  * Auto-complete bookings cron job handler
@@ -8,6 +8,6 @@ import { autoCompleteBookingsCase } from "../cases/autoCompleteBookingsCase";
 export const autoCompleteBookings = internalMutation({
     args: {},
     handler: async (ctx) => {
-        return await autoCompleteBookingsCase(ctx);
+        return await _autoCompleteBookingsMutation(ctx);
     },
 });

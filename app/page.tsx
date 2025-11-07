@@ -41,7 +41,7 @@ export default async function Home() {
     return (
         <div className="min-h-screen bg-white dark:bg-neutral-950">
             {/* Hero Section */}
-            <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 to-white dark:from-primary/10 dark:to-neutral-950">
+            <section className="relative overflow-hidden bg-linear-to-b from-primary/5 to-white dark:from-primary/10 dark:to-neutral-950">
                 <div className="container mx-auto px-4 py-16 md:py-20 lg:py-24">
                     <div className="max-w-4xl mx-auto text-center space-y-8">
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100 leading-tight">

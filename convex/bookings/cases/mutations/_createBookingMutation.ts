@@ -4,7 +4,7 @@ import { BookingType } from "../../types/bookingType";
 import { ACTIVE_STATUSES } from "../../types/bookingStatuses";
 import { BOOKING_ERRORS } from "../../../constants/errors";
 import { _validateTutorStudentRelationship } from "../_validateTutorStudentRelationship";
-import { _addBookingEvent } from "../_addBookingEvent";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 import { _getBookingEligibilityQuery } from "../queries/_getBookingEligibilityQuery";
 
 export async function _createBookingMutation(
@@ -65,7 +65,7 @@ export async function _createBookingMutation(
     });
 
     // Add creation event
-    await _addBookingEvent(ctx, bookingId, args.fromUserId, "created", {
+    await _addBookingEventMutation(ctx, bookingId, args.fromUserId, "created", {
         scheduledTime: args.timestamp,
     });
 

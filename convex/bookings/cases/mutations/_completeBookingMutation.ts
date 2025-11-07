@@ -1,6 +1,6 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
-import { _addBookingEvent } from "../_addBookingEvent";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
 
 /**
@@ -32,7 +32,7 @@ export async function _completeBookingMutation(
     });
 
     // Add completion event
-    await _addBookingEvent(ctx, args.bookingId, args.userId, "completed", {
+    await _addBookingEventMutation(ctx, args.bookingId, args.userId, "completed", {
         completedAt: Date.now(),
     });
 

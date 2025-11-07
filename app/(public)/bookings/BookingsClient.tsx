@@ -320,10 +320,10 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
 // ==================== Recurring Bookings Section ====================
 
 function RecurringBookingsSection() {
-    const recurringRules = useQuery(api.schemas.recurringRules.getMyRecurringRules);
-    const pauseRule = useMutation(api.schemas.recurringRules.pauseRecurringRule);
-    const resumeRule = useMutation(api.schemas.recurringRules.resumeRecurringRule);
-    const deleteRule = useMutation(api.schemas.recurringRules.deleteRecurringRule);
+    const recurringRules = useQuery(api.recurringRules.integrations.reads.getMyRecurringRules);
+    const pauseRule = useMutation(api.recurringRules.integrations.writes.pauseRecurringRule);
+    const resumeRule = useMutation(api.recurringRules.integrations.writes.resumeRecurringRule);
+    const deleteRule = useMutation(api.recurringRules.integrations.writes.deleteRecurringRule);
 
     const formatDay = (day: string) => {
         return day.charAt(0).toUpperCase() + day.slice(1);

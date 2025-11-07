@@ -68,7 +68,7 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName, 
                     <div className="relative">
                         <span className="text-lg">💬</span>
                         {hasUnread && (
-                            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center animate-pulse">
+                            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
                                 {(unreadCount ?? 0) > 9 ? "9+" : unreadCount}
                             </span>
                         )}
@@ -117,7 +117,7 @@ export default function BookingChat({ bookingId, currentUserId, otherPartyName, 
                                                 : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700"
                                                 }`}
                                         >
-                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                            <p className="text-sm whitespace-pre-wrap wrap-break-word">
                                                 {msg.message}
                                             </p>
                                             <p

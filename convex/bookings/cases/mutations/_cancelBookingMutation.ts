@@ -1,7 +1,7 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
-import { _addBookingEvent } from "../_addBookingEvent";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 
 export async function _cancelBookingMutation(
     ctx: MutationCtx,
@@ -23,7 +23,7 @@ export async function _cancelBookingMutation(
     });
 
     // Add cancellation event
-    await _addBookingEvent(ctx, args.bookingId, args.userId, "canceled", {
+    await _addBookingEventMutation(ctx, args.bookingId, args.userId, "canceled", {
         reason: args.reason,
     });
 }

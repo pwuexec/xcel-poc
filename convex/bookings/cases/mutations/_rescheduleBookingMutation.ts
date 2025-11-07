@@ -3,7 +3,7 @@ import { Id } from "../../../_generated/dataModel";
 import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
 import { _isRole } from "../../../users/cases/_isRole";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
-import { _addBookingEvent } from "../_addBookingEvent";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 
 export async function _rescheduleBookingMutation(
     ctx: MutationCtx,
@@ -30,7 +30,7 @@ export async function _rescheduleBookingMutation(
     });
 
     // Add reschedule event
-    await _addBookingEvent(ctx, args.bookingId, args.userId, "rescheduled", {
+    await _addBookingEventMutation(ctx, args.bookingId, args.userId, "rescheduled", {
         oldTime: booking.timestamp,
         newTime: args.newTimestamp,
         proposedBy,

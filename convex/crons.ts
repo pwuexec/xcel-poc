@@ -7,15 +7,15 @@ const crons = cronJobs();
  * Weekly cron job to process recurring booking rules
  * Runs every Monday at 00:00 UTC to create bookings for the upcoming week
  */
-// crons.weekly(
-//     "process recurring booking rules",
-//     {
-//         dayOfWeek: "monday",
-//         hourUTC: 0,
-//         minuteUTC: 0,
-//     },
-//     internal.model.bookings
-// );
+crons.weekly(
+    "process recurring booking rules",
+    {
+        dayOfWeek: "monday",
+        hourUTC: 0,
+        minuteUTC: 0,
+    },
+    internal.recurringRules.integrations.crons.processRecurringRules
+);
 
 /**
  * Auto-complete bookings that have finished

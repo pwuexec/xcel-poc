@@ -1,7 +1,7 @@
 import { MutationCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { _ensureBookingAccess } from "../_ensureBookingAccess";
-import { _addBookingEvent } from "../_addBookingEvent";
+import { _addBookingEventMutation } from "./_addBookingEventMutation";
 
 export async function _rejectBookingMutation(
     ctx: MutationCtx,
@@ -28,7 +28,7 @@ export async function _rejectBookingMutation(
     });
 
     // Add rejection event
-    await _addBookingEvent(ctx, args.bookingId, args.userId, "rejected", {
+    await _addBookingEventMutation(ctx, args.bookingId, args.userId, "rejected", {
         wasReschedule: booking.status === "awaiting_reschedule",
     });
 }
