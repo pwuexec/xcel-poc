@@ -2,7 +2,7 @@
 
 import { v } from "convex/values";
 import Stripe from "stripe";
-import { action, internalAction } from "../../_generated/server";
+import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 
 /**
@@ -18,7 +18,7 @@ import { internal } from "../../_generated/api";
  * - Frontend via Convex client libraries
  * - HTTP endpoint (via cases/httpActions/stripe.ts)
  */
-export const createCheckoutSession = action({
+export const createCheckoutSession = internalAction({
     args: {
         bookingId: v.id("bookings"),
         customerEmail: v.string(),
