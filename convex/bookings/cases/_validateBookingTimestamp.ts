@@ -7,6 +7,7 @@ import { getBookingDurationMs } from "../utils";
  * Validates that a booking timestamp is valid:
  * 1. Not in the past
  * 2. No time conflicts with existing bookings for either user
+ * 3. No time conflicts with recurring booking rules (tutors can't accept bookings during recurring slots)
  * 
  * Server works in UTC - all timestamps are in UTC
  * Frontend sends UTC timestamps, server validates in UTC
@@ -22,6 +23,7 @@ export async function _validateBookingTimestamp(
         toUserId: Id<"users">;
         bookingType: BookingType;
         excludeBookingId?: Id<"bookings">; // For reschedule, exclude the current booking
+        skipRecurringRuleCheck?: boolean; // For creating recurring bookings themselves
     }
 ) {
     // 1. Validate that the booking timestamp is not in the past (UTC comparison)
@@ -32,7 +34,60 @@ export async function _validateBookingTimestamp(
         );
     }
 
-    // 2. Check for time conflicts (all in UTC)
+    // 2. Check for recurring rule conflicts (tutors can't have bookings during their recurring slots)
+    if (!args.skipRecurringRuleCheck) {
+        const allRecurringRules = await ctx.db.query("recurringRules").collect();
+        
+        // Filter active recurring rules that involve either user
+        const relevantRules = allRecurringRules.filter((rule) => {
+            if (rule.status !== "active") return false;
+            
+            // Check if rule involves either user
+            return rule.fromUserId === args.fromUserId || rule.toUserId === args.fromUserId ||
+                   rule.fromUserId === args.toUserId || rule.toUserId === args.toUserId;
+        });
+
+        // Check if the booking timestamp conflicts with any recurring rule
+        for (const rule of relevantRules) {
+            const bookingDate = new Date(args.timestamp);
+            const bookingDayOfWeek = bookingDate.getUTCDay();
+            const bookingHourUTC = bookingDate.getUTCHours();
+            const bookingMinuteUTC = bookingDate.getUTCMinutes();
+            
+            // Convert day number to day name
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const bookingDayName = dayNames[bookingDayOfWeek];
+            
+            // Check if this booking falls on the same day of week and time as the recurring rule
+            if (rule.dayOfWeek === bookingDayName && 
+                rule.hourUTC === bookingHourUTC && 
+                rule.minuteUTC === bookingMinuteUTC) {
+                
+                // Determine which user has the conflict
+                const conflictUser = 
+                    rule.fromUserId === args.fromUserId || rule.toUserId === args.fromUserId
+                        ? "You"
+                        : "The other user";
+                
+                // Format recurring rule time in UK timezone
+                const ruleTime = new Date();
+                ruleTime.setUTCHours(rule.hourUTC, rule.minuteUTC, 0, 0);
+                const ruleTimeStr = ruleTime.toLocaleTimeString("en-GB", {
+                    timeZone: "Europe/London",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                });
+                
+                throw new Error(
+                    `${conflictUser} have a recurring booking every ${rule.dayOfWeek} at ${ruleTimeStr}. ` +
+                    `This time slot is reserved for recurring sessions. ` +
+                    `Please choose a different time.`
+                );
+            }
+        }
+    }
+
+    // 3. Check for time conflicts with existing bookings (all in UTC)
     const duration = getBookingDurationMs(args.bookingType);
     const bookingStart = args.timestamp; // UTC
     const bookingEnd = args.timestamp + duration; // UTC
@@ -47,8 +102,8 @@ export async function _validateBookingTimestamp(
             return false;
         }
 
-        // Only check bookings that are pending, accepted, or completed
-        if (!["pending", "accepted", "completed"].includes(booking.status)) {
+        // Only check active bookings (rejected and canceled bookings free up the time slot)
+        if (!["pending", "awaiting_reschedule", "confirmed", "awaiting_payment", "processing_payment"].includes(booking.status)) {
             return false;
         }
 

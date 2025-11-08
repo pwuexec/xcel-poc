@@ -9,6 +9,11 @@ import {
  * Internal mutation to process recurring rules and create bookings
  * Used by integrations/crons.ts
  * This runs weekly and creates bookings for the upcoming week
+ * 
+ * NEW APPROACH:
+ * - Recurring bookings are ALWAYS created successfully (no conflicts)
+ * - Regular bookings are prevented from being scheduled during recurring time slots
+ * - This means no pending bookings, no conflict resolution needed!
  */
 export async function _processRecurringRulesMutation(ctx: MutationCtx) {
     const now = new Date();
@@ -44,11 +49,15 @@ export async function _processRecurringRulesMutation(ctx: MutationCtx) {
                 now
             );
 
-            // Create the booking
+            // Create the booking - this will always succeed because:
+            // 1. Regular bookings can't be scheduled during recurring slots
+            // 2. We skip recurring rule checks for recurring bookings themselves
             await _createBookingMutation(ctx, {
                 fromUserId: rule.fromUserId,
                 toUserId: rule.toUserId,
                 timestamp: nextTimestamp,
+                recurringRuleId: rule._id,
+                skipRecurringRuleCheck: true, // Skip validation for recurring bookings
             });
 
             // Update the rule's lastBookingCreatedAt
@@ -57,7 +66,7 @@ export async function _processRecurringRulesMutation(ctx: MutationCtx) {
             });
 
             console.log(
-                `Created booking from recurring rule ${rule._id} for ${new Date(nextTimestamp).toISOString()}`
+                `Created recurring booking from rule ${rule._id} for ${new Date(nextTimestamp).toISOString()}`
             );
 
             processedCount++;

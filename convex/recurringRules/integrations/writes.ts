@@ -4,6 +4,7 @@ import { getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUser
 import { dayOfWeek } from "../types/recurringRule";
 import { _createRecurringRuleMutation } from "../cases/mutations/_createRecurringRuleMutation";
 import { _updateRecurringRuleStatusMutation } from "../cases/mutations/_updateRecurringRuleStatusMutation";
+import { _updateRecurringRuleScheduleMutation } from "../cases/mutations/_updateRecurringRuleScheduleMutation";
 import { _deleteRecurringRuleMutation } from "../cases/mutations/_deleteRecurringRuleMutation";
 
 /**
@@ -98,6 +99,29 @@ export const deleteRecurringRule = mutation({
         await _deleteRecurringRuleMutation(ctx, {
             ruleId: args.ruleId,
             userId: currentUser._id,
+        });
+    },
+});
+
+/**
+ * Public mutation to update a recurring rule's schedule
+ */
+export const updateRecurringRuleSchedule = mutation({
+    args: {
+        ruleId: v.id("recurringRules"),
+        dayOfWeek: dayOfWeek,
+        hourUTC: v.number(),
+        minuteUTC: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await getCurrentUserOrThrow(ctx);
+        
+        await _updateRecurringRuleScheduleMutation(ctx, {
+            ruleId: args.ruleId,
+            userId: currentUser._id,
+            dayOfWeek: args.dayOfWeek,
+            hourUTC: args.hourUTC,
+            minuteUTC: args.minuteUTC,
         });
     },
 });

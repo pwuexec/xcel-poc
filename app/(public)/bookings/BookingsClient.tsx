@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import PaymentButton from "./_components/PaymentButton";
 import { BookingCard } from "./_components/BookingCard";
 import { RecurringBookingsSection } from "./_components/RecurringBookingsSection";
+import { formatUKDate, formatUKTime, getCurrentUKTime } from "@/lib/dateTime";
 import { FunctionReturnType } from "convex/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,9 +96,8 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
         setParam("status", value);
     };
 
-    // Group bookings by date
-    const now = new Date();
-    const ukNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    // Group bookings by date (using UK timezone)
+    const ukNow = getCurrentUKTime();
     const ukToday = new Date(ukNow.getFullYear(), ukNow.getMonth(), ukNow.getDate());
 
     let groupedBookings: { label: string; bookings: any[] }[] = [];
@@ -105,12 +105,21 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
         const groups: { label: string; bookings: any[] }[] = [];
         
         results.forEach((item: any) => {
-            // Convert booking timestamp to UK timezone
-            const bookingUTC = new Date(item.booking.timestamp);
-            const bookingUK = new Date(bookingUTC.toLocaleString('en-US', { timeZone: 'Europe/London' }));
-            const bookingDate = new Date(bookingUK.getFullYear(), bookingUK.getMonth(), bookingUK.getDate());
+            // Convert booking timestamp to UK timezone date
+            const bookingTimestamp = item.booking.timestamp;
+            const bookingDate = new Date(bookingTimestamp);
             
-            const diffTime = bookingDate.getTime() - ukToday.getTime();
+            // Get UK date components
+            const ukDateStr = bookingDate.toLocaleDateString('en-GB', { 
+                timeZone: 'Europe/London',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const [day, month, year] = ukDateStr.split('/').map(Number);
+            const bookingUKDate = new Date(year, month - 1, day);
+            
+            const diffTime = bookingUKDate.getTime() - ukToday.getTime();
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
             let label: string;
@@ -134,11 +143,7 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
                     label = `In ${weeks} week and ${remainingDays} day${remainingDays > 1 ? 's' : ''}`;
                 }
             } else if (diffDays >= 14) {
-                label = bookingDate.toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    timeZone: "Europe/London",
-                });
+                label = formatUKDate(bookingTimestamp);
             } else if (diffDays < -1 && diffDays > -7) {
                 label = `${Math.abs(diffDays)} days ago`;
             } else if (diffDays <= -7) {

@@ -32,7 +32,7 @@ const schema = defineSchema({
   /**
    * Recurring Rules (for automatic booking creation)
    */
-  recurringRules
+  recurringRules,
 });
 
 export default schema;

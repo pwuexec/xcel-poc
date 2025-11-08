@@ -11,6 +11,7 @@ export const bookings = defineTable({
     bookingType: v.union(v.literal("paid"), v.literal("free")),
     events: v.array(bookingEvent),
     lastActionByUserId: v.optional(v.id("users")),
+    recurringRuleId: v.optional(v.id("recurringRules")), // Link to recurring rule if created from one
 })
     // Indexes for pagination with descending timestamp order
     .index("by_fromUserId_timestamp", ["fromUserId", "timestamp"])

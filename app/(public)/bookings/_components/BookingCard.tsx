@@ -12,6 +12,8 @@ import { BookingCardHistory } from "./BookingCardHistory";
 import BookingChat from "./BookingChat";
 import { useVideoCall } from "./VideoCall";
 import { BookingEventData } from "@/lib/formatBookingEvent";
+import { CreateRecurringDialog } from "./CreateRecurringDialog";
+import { useState } from "react";
 
 interface User {
     _id: Id<"users">;
@@ -54,9 +56,15 @@ export function BookingCard({
     const rejectBooking = useMutation(api.bookings.integrations.writes.rejectBookingMutation);
     const cancelBooking = useMutation(api.bookings.integrations.writes.cancelBookingMutation);
 
+    const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
+
     const isTutor = currentUser.role === "tutor";
     const otherParty = isTutor ? fromUser : toUser;
     const otherPartyName = otherParty?.name || otherParty?.email || "Unknown User";
+    
+    // For students, the tutor is the "toUser". For tutors, the student is the "fromUser"
+    const tutorId = isTutor ? currentUser._id : toUser._id;
+    const tutorName = isTutor ? (currentUser.name || currentUser.email || "You") : otherPartyName;
 
     if (!toUser) return null;
 
@@ -135,11 +143,14 @@ export function BookingCard({
                         currentUserRole={currentUser.role}
                         lastActionByCurrentUser={currentUserMadeLastAction}
                         isPaid={isPaid}
+                        tutorId={tutorId}
+                        tutorName={tutorName}
                         onAccept={handleAccept}
                         onReject={handleReject}
                         onCancel={handleCancel}
                         onPayment={handlePayment}
                         onJoinVideoCall={handleJoinVideoCall}
+                        onCreateRecurring={() => setIsRecurringDialogOpen(true)}
                     />
                 </div>
 
@@ -156,6 +167,16 @@ export function BookingCard({
                 {/* History */}
                 <BookingCardHistory events={booking.events} />
             </CardContent>
+
+            {/* Create Recurring Dialog */}
+            <CreateRecurringDialog
+                isOpen={isRecurringDialogOpen}
+                onClose={() => setIsRecurringDialogOpen(false)}
+                tutorId={tutorId}
+                tutorName={tutorName}
+                bookingType={booking.bookingType}
+                originalTimestamp={booking.timestamp}
+            />
         </Card>
     );
 }

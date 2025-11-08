@@ -14,6 +14,8 @@ export async function _createBookingMutation(
         toUserId: Id<"users">;
         timestamp: number;
         bookingType?: BookingType;
+        recurringRuleId?: Id<"recurringRules">; // Link to recurring rule if created from one
+        skipRecurringRuleCheck?: boolean; // Skip recurring rule validation for recurring bookings
     }
 ) {
     // Validate tutor-student relationship
@@ -39,6 +41,7 @@ export async function _createBookingMutation(
         fromUserId: args.fromUserId,
         toUserId: args.toUserId,
         bookingType: bookingTypeValue,
+        skipRecurringRuleCheck: args.skipRecurringRuleCheck, // Pass through the flag
     });
 
     // Create booking
@@ -50,6 +53,7 @@ export async function _createBookingMutation(
         bookingType: bookingTypeValue,
         events: [],
         lastActionByUserId: args.fromUserId,
+        recurringRuleId: args.recurringRuleId, // Link to recurring rule if provided
     });
 
     // Add creation event

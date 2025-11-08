@@ -56,3 +56,18 @@ export function isBookingFinal(status: string): boolean {
 export function canRespondToBooking(status: string, userMadeLastAction: boolean): boolean {
     return (status === "pending" || status === "awaiting_reschedule") && !userMadeLastAction;
 }
+
+/**
+ * Check if a student can create a recurring booking from this completed booking
+ */
+export function canCreateRecurringBooking(
+    status: string, 
+    currentUserRole: "tutor" | "student" | "user" | "admin"
+): boolean {
+    // Only students (non-tutors) can create recurring bookings
+    // A student is anyone who is NOT a tutor (i.e., role is "user" or "admin")
+    if (currentUserRole === "tutor") return false;
+    
+    // Only from completed bookings
+    return status === "completed";
+}
