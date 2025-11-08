@@ -25,9 +25,7 @@ export const createCheckoutSession = action({
         userId: v.id("users"),
     },
     handler: async (ctx, args) => {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: "2025-09-30.clover",
-        });
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
         // Verify booking exists
         const booking = await ctx.runQuery(
@@ -91,9 +89,7 @@ export const processStripeWebhook = internalAction({
         signature: v.string(),
     },
     handler: async (ctx, args) => {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: "2025-09-30.clover",
-        });
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
         let event: Stripe.Event;

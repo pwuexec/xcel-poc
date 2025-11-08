@@ -1,18 +1,18 @@
 # Multi-stage Dockerfile for Next.js with Convex
 
 # Stage 1: Dependencies
-FROM node:24-alpine AS deps
+FROM oven/bun:1.3.1-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json bun.lockb* ./
 # Use cache mount for faster installs
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 # Stage 2: Builder
-FROM node:24-alpine AS builder
+FROM oven/bun:1.3.1-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -45,11 +45,11 @@ ENV CONVEX_URL=$CONVEX_URL
 ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 
 # Deploy Convex backend and build in one layer
-RUN npx convex deploy --cmd-url-env-var-name CONVEX_URL && \
-    npm run build
+RUN bunx convex deploy --cmd-url-env-var-name CONVEX_URL && \
+    bun run build
 
 # Stage 3: Runner
-FROM node:24-alpine AS runner
+FROM oven/bun:1.3.1-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -80,4 +80,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Start the Next.js application
-CMD ["node", "server.js"]
+CMD ["bun", "server.js"]
