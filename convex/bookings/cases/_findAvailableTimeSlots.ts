@@ -1,7 +1,7 @@
 import { QueryCtx } from "../../_generated/server";
 import { Id } from "../../_generated/dataModel";
 import { BookingType } from "../types/bookingType";
-import { getBookingDuration } from "./_getBookingDuration";
+import { getBookingDurationMs } from "../utils";
 
 /**
  * Find available time slots for a given date and users
@@ -21,7 +21,7 @@ export async function _findAvailableTimeSlots(
     availableSlots: string[]; // Array of time strings "HH:MM"
     busySlots: Array<{ start: string; end: string; user: string }>;
 }> {
-    const duration = getBookingDuration(args.bookingType);
+    const duration = getBookingDurationMs(args.bookingType);
     
     // Get all bookings for both users
     const allBookings = await ctx.db.query("bookings").collect();
@@ -66,7 +66,7 @@ export async function _findAvailableTimeSlots(
     const busyRanges: Array<{ start: number; end: number }> = [];
     
     for (const booking of relevantBookings) {
-        const bookingDuration = getBookingDuration(booking.bookingType);
+        const bookingDuration = getBookingDurationMs(booking.bookingType);
         const start = booking.timestamp; // UTC timestamp
         const end = start + bookingDuration;
         

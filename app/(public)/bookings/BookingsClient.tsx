@@ -3,16 +3,12 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ACTIVE_STATUSES, PAST_STATUSES } from "@/convex/bookings/types/bookingStatuses";
-import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useSearchParamsState } from "@/hooks/useSearchParamsState";
-import CreateBookingForm from "./_components/CreateBookingForm";
-import RescheduleBookingForm from "./_components/RescheduleBookingForm";
+import { useRouter } from "next/navigation";
 import PaymentButton from "./_components/PaymentButton";
-import BookingChat from "./_components/BookingChat";
-import { useVideoCall } from "./_components/VideoCall";
+import { BookingCard } from "./_components/BookingCard";
 import { FunctionReturnType } from "convex/server";
-import { formatBookingEvent, getEventIcon } from "@/lib/formatBookingEvent";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,15 +26,8 @@ import {
 import {
     CalendarIcon,
     ClockIcon,
-    VideoIcon,
-    CreditCardIcon,
     CheckIcon,
-    XIcon,
-    CalendarClockIcon,
-    BanIcon,
     PlusIcon,
-    ChevronDownIcon,
-    ChevronUpIcon,
     InfoIcon,
     RepeatIcon,
 } from "lucide-react";
@@ -50,6 +39,7 @@ interface BookingsClientProps {
 }
 
 export function BookingsClient({ initialStatus }: BookingsClientProps) {
+    const router = useRouter();
     const { getParam, setParam, setParams, removeParam, removeParams } = useSearchParamsState();
 
     const statusFilter = getParam("status") || initialStatus || "active";
@@ -71,11 +61,14 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
     const results = bookingsData?.page;
     const status = bookingsData === undefined ? "LoadingFirstPage" : "Exhausted";
     
-    const isCreateDialogOpen = action === "create";
-    const isRescheduleDialogOpen = action === "reschedule" && !!bookingId;
     const isPaymentDialogOpen = action === "payment" && !!bookingId;
 
     const handleOpenDialog = (dialogAction: string, id?: Id<"bookings"> | string) => {
+        if (dialogAction === "create") {
+            router.push("/bookings/new");
+            return;
+        }
+        
         const params: Record<string, string> = { action: dialogAction };
         if (id) {
             params.bookingId = id as string;
@@ -183,7 +176,7 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
         <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950">
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
                 {/* Header */}
-                <div className="mb-8">
+                <div className="mb-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                         <div>
                             <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
@@ -234,14 +227,14 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
                         <Alert className="mt-3 py-2 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
                             <InfoIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
                             <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                                You have <strong>{statusCounts.pending}</strong> booking{statusCounts.pending > 1 ? 's' : ''} pending confirmation
+                                {statusCounts.pending} pending confirmation
                             </AlertDescription>
                         </Alert>
                     )}
                 </div>
 
                 {/* Bookings List */}
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* Show recurring bookings tab */}
                     {statusFilter === "recurring" && <RecurringBookingsSection />}
 
@@ -289,20 +282,8 @@ export function BookingsClient({ initialStatus }: BookingsClientProps) {
             </div>
 
             {/* Dialogs */}
-            <CreateBookingDialog
-                isOpen={isCreateDialogOpen}
-                onClose={handleCloseDialog}
-            />
-
             {selectedBooking && (
                 <>
-                    <RescheduleBookingDialog
-                        isOpen={isRescheduleDialogOpen}
-                        onClose={handleCloseDialog}
-                        bookingId={selectedBooking.booking._id}
-                        currentTimestamp={selectedBooking.booking.timestamp}
-                    />
-
                     <PaymentBookingDialog
                         isOpen={isPaymentDialogOpen}
                         onClose={handleCloseDialog}
@@ -598,409 +579,9 @@ function EmptyState({ statusFilter, onCreateBooking }: EmptyStateProps) {
 }
 
 // ==================== Booking Card ====================
-
-interface BookingCardProps extends BookingWithUsers {
-    unreadCount: number;
-    onOpenDialog: (action: string, bookingId?: string) => void;
-}
-
-function BookingCard({ booking, toUser, fromUser, currentUser, unreadCount, onOpenDialog }: BookingCardProps) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [isJoiningCall, setIsJoiningCall] = useState(false);
-    const { getVideoCallUrl } = useVideoCall();
-    const acceptBooking = useMutation(api.bookings.integrations.writes.acceptBookingMutation);
-    const rejectBooking = useMutation(api.bookings.integrations.writes.rejectBookingMutation);
-    const cancelBooking = useMutation(api.bookings.integrations.writes.cancelBookingMutation);
-
-    const isTutor = currentUser.role === "tutor";
-    const otherParty = isTutor ? fromUser : toUser;
-    const otherPartyName = otherParty?.name || otherParty?.email || "Unknown User";
-    const bookingDate = new Date(booking.timestamp);
-
-    if (!toUser) return null;
-
-    // Check if booking has been paid
-    const paymentSucceededEvent = booking.events.find((e: any) => e.type === "payment_succeeded");
-    const isPaid = !!paymentSucceededEvent;
-    const isPendingPayment = booking.status === "awaiting_payment" || booking.status === "processing_payment";
-
-    const currentUserMadeLastAction = booking.lastActionByUserId === currentUser._id;
-    const canAcceptReject = (booking.status === "pending" || booking.status === "awaiting_reschedule") && !currentUserMadeLastAction;
-    
-    // Can reschedule UNLESS it's completed, canceled, or rejected
-    const canReschedule = booking.status !== "completed" && booking.status !== "canceled" && booking.status !== "rejected";
-    
-    const canCancel = booking.status !== "completed" && booking.status !== "canceled" && booking.status !== "rejected";
-    
-    // Show pay button if awaiting_payment AND not a tutor AND not already paid AND booking is paid type
-    const canPay = booking.status === "awaiting_payment" && currentUser.role !== "tutor" && !isPaid && booking.bookingType === "paid";
-    
-    // Can join video call if booking is confirmed and within the allowed time window
-    // Time window: 10 minutes before the lesson starts to 1 hour after it starts
-    const now = Date.now();
-    const tenMinutesInMs = 10 * 60 * 1000;
-    const oneHourInMs = 60 * 60 * 1000;
-    const timeDifference = booking.timestamp - now;
-    const canJoinVideoCall = 
-        booking.status === "confirmed" && 
-        timeDifference <= tenMinutesInMs &&  // Not more than 10 minutes before
-        timeDifference > -oneHourInMs;        // Not more than 1 hour after
-
-    // Button factory for cleaner action button rendering
-    type ActionButton = {
-        show: boolean;
-        label: string;
-        icon: any;
-        onClick: () => void | Promise<void>;
-        variant?: "default" | "outline";
-        className?: string;
-        fullWidth?: boolean;
-    };
-
-    const actionButtons: ActionButton[] = [
-        {
-            show: canJoinVideoCall,
-            label: isJoiningCall ? "Launching..." : "Join Video Call",
-            icon: VideoIcon,
-            onClick: async () => {
-                setIsJoiningCall(true);
-                try {
-                    const launchUrl = await getVideoCallUrl({
-                        bookingId: booking._id,
-                        userName: currentUser.name || currentUser.email || "User",
-                        userId: currentUser._id,
-                        userEmail: currentUser.email || "",
-                    });
-                    window.open(launchUrl, '_blank', 'noopener,noreferrer');
-                } catch (error) {
-                    console.error("Failed to join video call:", error);
-                    alert(error instanceof Error ? error.message : "Failed to join video call. Please try again.");
-                } finally {
-                    setIsJoiningCall(false);
-                }
-            },
-            className: "bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50",
-            fullWidth: true,
-        },
-        {
-            show: canPay,
-            label: "Complete Payment",
-            icon: CreditCardIcon,
-            onClick: () => onOpenDialog("payment", booking._id),
-            className: "bg-purple-600 hover:bg-purple-700 text-white",
-            fullWidth: true,
-        },
-        {
-            show: canAcceptReject,
-            label: "Accept",
-            icon: CheckIcon,
-            onClick: async () => {
-                try {
-                    await acceptBooking({ bookingId: booking._id });
-                } catch (error) {
-                    alert(error instanceof Error ? error.message : "Failed to accept booking");
-                }
-            },
-            className: "bg-green-600 hover:bg-green-700 text-white",
-        },
-        {
-            show: canAcceptReject,
-            label: "Decline",
-            icon: XIcon,
-            onClick: async () => {
-                if (!confirm("Are you sure you want to decline this booking?")) return;
-                try {
-                    await rejectBooking({ bookingId: booking._id });
-                } catch (error) {
-                    alert(error instanceof Error ? error.message : "Failed to decline booking");
-                }
-            },
-            variant: "outline",
-            className: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-900",
-        },
-        {
-            show: canReschedule && !canJoinVideoCall,
-            label: "Reschedule",
-            icon: CalendarClockIcon,
-            onClick: () => onOpenDialog("reschedule", booking._id),
-            variant: "outline",
-        },
-        {
-            show: canCancel && !canJoinVideoCall && !canAcceptReject,
-            label: "Cancel",
-            icon: BanIcon,
-            onClick: async () => {
-                if (!confirm("Are you sure you want to cancel this booking?")) return;
-                try {
-                    await cancelBooking({ bookingId: booking._id });
-                } catch (error) {
-                    alert(error instanceof Error ? error.message : "Failed to cancel booking");
-                }
-            },
-            variant: "outline",
-            className: "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-900",
-        },
-    ];
-
-    const visibleButtons = actionButtons.filter(btn => btn.show);
-
-    const getStatusBadge = () => {
-        switch (booking.status) {
-            case "pending":
-            case "awaiting_reschedule":
-                return <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Pending</Badge>;
-            case "awaiting_payment":
-            case "processing_payment":
-                return <Badge className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800">Payment Required</Badge>;
-            case "confirmed":
-                return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Confirmed</Badge>;
-            case "completed":
-                return <Badge variant="outline" className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Completed</Badge>;
-            case "canceled":
-            case "rejected":
-                return <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">Cancelled</Badge>;
-            default:
-                return <Badge variant="outline">{String(booking.status).replace(/_/g, " ")}</Badge>;
-        }
-    };
-
-    return (
-        <Card className="overflow-hidden hover:shadow-lg transition-all duration-200 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-            <CardContent className="p-0">
-                {/* Header */}
-                <div className="p-6 pb-4">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                            {otherParty.image ? (
-                                <img
-                                    src={otherParty.image}
-                                    alt={otherParty.name || "User"}
-                                    className="h-14 w-14 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm"
-                                />
-                            ) : (
-                                <div className="h-14 w-14 rounded-full bg-linear-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center ring-2 ring-zinc-100 dark:ring-zinc-800 shadow-sm">
-                                    <span className="text-xl font-bold text-zinc-700 dark:text-zinc-300">
-                                        {otherParty?.name?.[0]?.toUpperCase() || "?"}
-                                    </span>
-                                </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                                    {otherPartyName}
-                                </h3>
-                                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                                    {isTutor ? "Student" : "Your Tutor"}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                            {getStatusBadge()}
-                            {isPaid && (
-                                <Badge variant="default" className="bg-emerald-600 text-white border-emerald-600">
-                                    Paid
-                                </Badge>
-                            )}
-                            {booking.bookingType === "free" && (
-                                <Badge variant="success" className="bg-blue-600 text-white border-blue-600">
-                                    Free Meeting
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Date/Time */}
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                            <CalendarIcon className="size-5 text-zinc-500 dark:text-zinc-400 shrink-0" />
-                            <div className="min-w-0">
-                                <p className="text-xs text-zinc-500 dark:text-zinc-500 font-medium">Date</p>
-                                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {bookingDate.toLocaleDateString("en-GB", {
-                                        weekday: "short",
-                                        month: "short",
-                                        day: "numeric",
-                                        timeZone: "Europe/London",
-                                    })}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                            <ClockIcon className="size-5 text-zinc-500 dark:text-zinc-400 shrink-0" />
-                            <div className="min-w-0">
-                                <p className="text-xs text-zinc-500 dark:text-zinc-500 font-medium">Time</p>
-                                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {bookingDate.toLocaleTimeString("en-GB", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                        timeZone: "Europe/London",
-                                    })}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Payment Status - Show when paid */}
-                    {isPaid && paymentSucceededEvent && (
-                        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
-                                <CheckIcon className="size-4" />
-                                <span className="text-sm font-medium">
-                                    Payment completed on {new Date(paymentSucceededEvent.timestamp).toLocaleDateString("en-GB", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                        timeZone: "Europe/London",
-                                    })}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Actions */}
-                    {visibleButtons.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {visibleButtons.map((btn, index) => {
-                                const Icon = btn.icon;
-                                return (
-                                    <Button
-                                        key={index}
-                                        onClick={btn.onClick}
-                                        variant={btn.variant || "default"}
-                                        className={`gap-2 ${btn.fullWidth ? "sm:col-span-2" : ""} ${btn.className || ""}`}
-                                        size="lg"
-                                    >
-                                        <Icon className="size-5" />
-                                        {btn.label}
-                                    </Button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                <Separator />
-
-                {/* Chat */}
-                <BookingChat
-                    bookingId={booking._id}
-                    currentUserId={currentUser._id}
-                    otherPartyName={otherPartyName}
-                    unreadCount={unreadCount}
-                />
-
-                {/* History */}
-                {booking.events.length > 0 && (
-                    <>
-                        <Separator />
-                        <div>
-                            <button
-                                onClick={() => setIsExpanded(!isExpanded)}
-                                className="w-full px-6 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                            >
-                                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                    History ({booking.events.length} events)
-                                </span>
-                                {isExpanded ? (
-                                    <ChevronUpIcon className="size-4 text-zinc-400" />
-                                ) : (
-                                    <ChevronDownIcon className="size-4 text-zinc-400" />
-                                )}
-                            </button>
-
-                            {isExpanded && (
-                                <div className="px-6 pb-6 space-y-3">
-                                    {booking.events.map((event: any, index: number) => (
-                                        <div
-                                            key={index}
-                                            className="flex items-start gap-3 text-sm p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-800"
-                                        >
-                                            <span className="text-lg">{getEventIcon(event.type)}</span>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 capitalize">
-                                                        {event.type.replace(/_/g, " ")}
-                                                    </span>
-                                                    <span className="text-zinc-500 dark:text-zinc-500">
-                                                        by {event.userName}
-                                                    </span>
-                                                </div>
-                                                <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                                                    {formatBookingEvent(event)}
-                                                </p>
-                                                <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                                                    {new Date(event.timestamp).toLocaleString('en-GB', {
-                                                        year: "numeric",
-                                                        month: "short",
-                                                        day: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                        timeZone: "Europe/London",
-                                                    })}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
+// BookingCard component has been extracted to _components/BookingCard.tsx
 
 // ==================== Dialogs ====================
-
-interface CreateBookingDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
-
-function CreateBookingDialog({ isOpen, onClose }: CreateBookingDialogProps) {
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Book a New Session</DialogTitle>
-                    <DialogDescription>
-                        Schedule a tutoring session with one of our expert tutors
-                    </DialogDescription>
-                </DialogHeader>
-                <CreateBookingForm onSuccess={onClose} />
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-interface RescheduleBookingDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-    bookingId: Id<"bookings">;
-    currentTimestamp: number;
-}
-
-function RescheduleBookingDialog({ isOpen, onClose, bookingId, currentTimestamp }: RescheduleBookingDialogProps) {
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Reschedule Session</DialogTitle>
-                    <DialogDescription>
-                        Request a new time for this booking
-                    </DialogDescription>
-                </DialogHeader>
-                <RescheduleBookingForm
-                    bookingId={bookingId}
-                    currentTimestamp={currentTimestamp}
-                    onSuccess={onClose}
-                />
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 interface PaymentBookingDialogProps {
     isOpen: boolean;

@@ -1,7 +1,7 @@
 import { QueryCtx } from "../../_generated/server";
 import { Id } from "../../_generated/dataModel";
 import { BookingType } from "../types/bookingType";
-import { getBookingDuration } from "./_getBookingDuration";
+import { getBookingDurationMs } from "../utils";
 
 /**
  * Validates that a booking timestamp is valid:
@@ -33,7 +33,7 @@ export async function _validateBookingTimestamp(
     }
 
     // 2. Check for time conflicts (all in UTC)
-    const duration = getBookingDuration(args.bookingType);
+    const duration = getBookingDurationMs(args.bookingType);
     const bookingStart = args.timestamp; // UTC
     const bookingEnd = args.timestamp + duration; // UTC
 
@@ -63,7 +63,7 @@ export async function _validateBookingTimestamp(
 
     // Check for time conflicts (UTC comparisons)
     for (const booking of relevantBookings) {
-        const existingDuration = getBookingDuration(booking.bookingType);
+        const existingDuration = getBookingDurationMs(booking.bookingType);
         const existingStart = booking.timestamp; // UTC
         const existingEnd = booking.timestamp + existingDuration; // UTC
 

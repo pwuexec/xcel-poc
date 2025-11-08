@@ -2,6 +2,7 @@ import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
 import { _isRole } from "../../../users/cases/_isRole";
+import { formatUserNameGDPR } from "../../../users/cases/_formatUserNameGDPR";
 
 /**
  * Internal query to get recurring rules for a user
@@ -33,8 +34,14 @@ export async function _getUserRecurringRulesQuery(
 
             return {
                 rule,
-                toUser,
-                fromUser,
+                toUser: {
+                    ...toUser,
+                    name: formatUserNameGDPR(toUser.name),
+                },
+                fromUser: {
+                    ...fromUser,
+                    name: formatUserNameGDPR(fromUser.name),
+                },
                 currentUser,
             };
         })

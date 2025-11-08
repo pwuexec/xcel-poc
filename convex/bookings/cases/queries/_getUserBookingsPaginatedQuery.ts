@@ -5,6 +5,7 @@ import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUser
 import { _isRole } from "../../../users/cases/_isRole";
 import { BookingEvent } from "../../types/bookingEvents";
 import { ACTIVE_STATUSES, PAST_STATUSES } from "../../types/bookingStatuses";
+import { formatUserNameGDPR } from "../../../users/cases/_formatUserNameGDPR";
 
 export async function _getUserBookingsPaginatedQuery(
     ctx: QueryCtx,
@@ -48,7 +49,7 @@ export async function _getUserBookingsPaginatedQuery(
             const eventUser = await getUserByIdOrThrow(ctx, event.userId);
             return {
                 ...event,
-                userName: eventUser.name || eventUser.email || "Unknown User",
+                userName: formatUserNameGDPR(eventUser.name) || eventUser.email || "Unknown User",
             };
         }));
 
@@ -65,8 +66,14 @@ export async function _getUserBookingsPaginatedQuery(
                 ...booking,
                 events: eventsWithUsers,
             },
-            toUser,
-            fromUser,
+            toUser: {
+                ...toUser,
+                name: formatUserNameGDPR(toUser.name),
+            },
+            fromUser: {
+                ...fromUser,
+                name: formatUserNameGDPR(fromUser.name),
+            },
             currentUser,
             unreadCount
         };

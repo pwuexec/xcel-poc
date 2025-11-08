@@ -1,6 +1,7 @@
 import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { _ensureBookingAccess } from "../../../bookings/cases/_ensureBookingAccess";
+import { formatUserNameGDPR } from "../../../users/cases/_formatUserNameGDPR";
 
 /**
  * Internal query to get messages for a booking with user info
@@ -27,7 +28,7 @@ export async function _getBookingMessagesQuery(
             const user = await ctx.db.get(message.userId);
             return {
                 ...message,
-                userName: user?.name || user?.email || "Unknown User",
+                userName: formatUserNameGDPR(user?.name) || user?.email || "Unknown User",
                 userImage: user?.image,
             };
         })

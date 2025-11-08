@@ -2,6 +2,7 @@ import { QueryCtx } from "../../../_generated/server";
 import { Id } from "../../../_generated/dataModel";
 import { getUserByIdOrThrow } from "../../../users/cases/queries/_getCurrentUserQuery";
 import { _getBookingOrThrow } from "../_getBookingOrThrow";
+import { formatUserNameGDPR } from "../../../users/cases/_formatUserNameGDPR";
 
 /**
  * Business logic to verify a booking exists and that a user is a participant
@@ -53,12 +54,12 @@ export async function _verifyBookingAndParticipantsQuery(
         booking,
         tutor: {
             _id: tutor._id,
-            name: tutor.name,
+            name: formatUserNameGDPR(tutor.name),
             email: tutor.email,
         },
         student: {
             _id: student._id,
-            name: student.name,
+            name: formatUserNameGDPR(student.name),
             email: student.email,
         },
     };

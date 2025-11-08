@@ -22,6 +22,69 @@ export function formatBookingDateTime(date: Date | undefined, time: string): str
 }
 
 /**
+ * Format a timestamp to UK date (short format)
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted date string (e.g., "15 Nov")
+ */
+export function formatUKDate(timestamp: number): string {
+    return new Date(timestamp).toLocaleDateString('en-GB', {
+        timeZone: 'Europe/London',
+        day: 'numeric',
+        month: 'short'
+    });
+}
+
+/**
+ * Format a timestamp to UK time (24-hour format)
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted time string (e.g., "14:30")
+ */
+export function formatUKTime(timestamp: number): string {
+    return new Date(timestamp).toLocaleTimeString('en-GB', {
+        timeZone: 'Europe/London',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+}
+
+/**
+ * Format a timestamp to UK date and time
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted date and time string (e.g., "15 Nov at 14:30")
+ */
+export function formatUKDateTime(timestamp: number): string {
+    return `${formatUKDate(timestamp)} at ${formatUKTime(timestamp)}`;
+}
+
+/**
+ * Format a time range showing start and end time
+ * @param time - Start time in HH:MM or HH:MM:SS format (24-hour)
+ * @param durationMinutes - Duration in minutes
+ */
+export function formatTimeRange(time: string, durationMinutes: number): string {
+    if (!time) return "";
+
+    const [hours, minutes] = time.split(":");
+    const startHour = parseInt(hours, 10);
+    const startMinute = parseInt(minutes, 10);
+    
+    // Calculate end time
+    const totalMinutes = startHour * 60 + startMinute + durationMinutes;
+    const endHour = Math.floor(totalMinutes / 60) % 24;
+    const endMinute = totalMinutes % 60;
+    
+    // Format times in 12-hour format
+    const formatTime12 = (hour: number, minute: number) => {
+        const ampm = hour >= 12 ? "PM" : "AM";
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${minute.toString().padStart(2, '0')} ${ampm}`;
+    };
+    
+    return `${formatTime12(startHour, startMinute)} - ${formatTime12(endHour, endMinute)}`;
+}
+
+/**
  * Convert UK timezone date and time to UTC timestamp
  * Frontend works in Europe/London timezone, server works in UTC
  * 

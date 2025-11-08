@@ -3,6 +3,8 @@
 import { v } from "convex/values";
 import { action } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { EARLY_JOIN_MINUTES, LATE_JOIN_MINUTES } from "../constants";
+const crypto = require('crypto');
 
 type LessonspaceSessionResult = {
     launchUrl: string;
@@ -30,6 +32,10 @@ type LessonspaceSessionResult = {
  * - Can join: Up to 1 hour after the scheduled start time
  * - Cannot join: Before 10 minutes prior or after 1 hour has passed
  * 
+ * Uses constants from ../constants.ts:
+ * - EARLY_JOIN_MINUTES: Minutes before session users can join
+ * - LATE_JOIN_MINUTES: Minutes after session users can still join
+ * 
  * Called directly from the frontend via Convex client libraries.
  * 
  * Architecture:
@@ -55,46 +61,46 @@ export const createLessonspaceSession = action({
         );
 
         // Validate that the lesson is within the allowed time window
-        // Can join: 10 minutes before start time until 1 hour after start time
+        // Can join: EARLY_JOIN_MINUTES before start time until LATE_JOIN_MINUTES after start time
         const now = Date.now();
-        const tenMinutesInMs = 10 * 60 * 1000;
-        const oneHourInMs = 60 * 60 * 1000;
+        const earlyJoinMs = EARLY_JOIN_MINUTES * 60 * 1000;
+        const lateJoinMs = LATE_JOIN_MINUTES * 60 * 1000;
         const timeDifference = bookingData.booking.timestamp - now;
 
-        // Too early - more than 10 minutes before the lesson
-        if (timeDifference > tenMinutesInMs) {
+        // Too early - more than EARLY_JOIN_MINUTES before the lesson
+        if (timeDifference > earlyJoinMs) {
             const minutesUntilStart = Math.ceil(timeDifference / (60 * 1000));
-            const availableAt = bookingData.booking.timestamp - tenMinutesInMs;
+            const availableAt = bookingData.booking.timestamp - earlyJoinMs;
             
             throw new Error(
                 JSON.stringify({
                     code: "LESSON_NOT_AVAILABLE",
-                    message: `You can join the lesson starting 10 minutes before the scheduled time. The lesson starts in ${minutesUntilStart} minutes.`,
+                    message: `You can join the lesson starting ${EARLY_JOIN_MINUTES} minutes before the scheduled time. The lesson starts in ${minutesUntilStart} minutes.`,
                     availableAt,
                 })
             );
         }
 
-        // Too late - more than 1 hour after the lesson started
-        if (timeDifference < -oneHourInMs) {
-            const hoursAfterStart = Math.abs(Math.floor(timeDifference / oneHourInMs));
+        // Too late - more than LATE_JOIN_MINUTES after the lesson started
+        if (timeDifference < -lateJoinMs) {
+            const hoursAfterStart = Math.abs(Math.floor(timeDifference / (60 * 60 * 1000)));
             
             throw new Error(
                 JSON.stringify({
                     code: "LESSON_EXPIRED",
-                    message: `This lesson session has expired. You can only join within 1 hour after the scheduled start time. This lesson started ${hoursAfterStart} hour(s) ago.`,
+                    message: `This lesson session has expired. You can only join within ${LATE_JOIN_MINUTES} minutes after the scheduled start time. This lesson started ${hoursAfterStart} hour(s) ago.`,
                 })
             );
         }
 
         // Call Lessonspace API to create session
         const lessonspaceApiKey = process.env.LESSONSPACE_API_KEY;
-
         if (!lessonspaceApiKey) {
             throw new Error("Missing Lessonspace API key");
         }
 
-        const spaceId = btoa(`${bookingData.tutor._id}-${bookingData.student._id}`).substring(0, 63);
+        // Use Web Crypto (native browser) to compute a SHA-256 hash for the space ID
+        const spaceId = computeSpaceIdHash(bookingData.tutor._id, bookingData.student._id);
         const isTutor = bookingData.tutor._id === args.userId;
 
         try {
@@ -148,3 +154,10 @@ export const createLessonspaceSession = action({
         }
     },
 });
+
+function computeSpaceIdHash(tutorId: string, studentId: string) {
+    const data = `${tutorId}-${studentId}`;
+    const hash = crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
+
+    return hash;
+}
