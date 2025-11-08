@@ -10,7 +10,7 @@ COPY package.json bun.lockb* ./
 
 # Install dependencies with cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile --production=false
+    bun install --frozen-lockfile
 
 # Stage 2: Builder
 FROM oven/bun:1.3.2-alpine AS builder
