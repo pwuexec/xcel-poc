@@ -38,11 +38,13 @@ ENV NODE_ENV=production
 ARG CONVEX_DEPLOY_KEY
 ARG CONVEX_URL
 ARG NEXT_PUBLIC_CONVEX_URL
+ARG CONVEX_SITE_URL
 
 # Set environment variables for build (CRITICAL for NEXT_PUBLIC_* vars)
 ENV CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY
 ENV CONVEX_URL=$CONVEX_URL
 ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
+ENV CONVEX_SITE_URL=$CONVEX_SITE_URL
 
 # Deploy Convex backend and build in one layer
 RUN npx convex deploy --cmd-url-env-var-name CONVEX_URL && \
@@ -78,6 +80,16 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+# Runtime environment variables need to be available
+# These will be injected at runtime by Dokploy
+ARG CONVEX_SITE_URL
+ARG NEXT_PUBLIC_CONVEX_URL
+ARG NEXT_PUBLIC_APP_URL
+
+ENV CONVEX_SITE_URL=$CONVEX_SITE_URL
+ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Start the Next.js application
 CMD ["node", "server.js"]
