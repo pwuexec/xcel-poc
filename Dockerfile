@@ -7,7 +7,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
+# Use cache mount for faster installs
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 # Stage 2: Builder
 FROM oven/bun:1.3.1-alpine AS builder
@@ -15,7 +17,18 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+
+# Copy only necessary files for build (convex config, next config, etc.)
+COPY convex ./convex
+COPY next.config.ts tsconfig.json ./
+COPY app ./app
+COPY components ./components
+COPY hooks ./hooks
+COPY lib ./lib
+COPY providers ./providers
+COPY public ./public
+COPY package.json ./
+COPY *.config.* ./
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -31,11 +44,9 @@ ENV CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY
 ENV CONVEX_URL=$CONVEX_URL
 ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 
-# Deploy Convex backend (this generates the _generated files)
-RUN bunx convex deploy --cmd-url-env-var-name CONVEX_URL
-
-# Build Next.js application (now with generated Convex files)
-RUN bun run build
+# Deploy Convex backend and build in one layer
+RUN bunx convex deploy --cmd-url-env-var-name CONVEX_URL && \
+    bun run build
 
 # Stage 3: Runner
 FROM oven/bun:1.3.1-alpine AS runner
@@ -44,17 +55,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user in one RUN command
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    mkdir .next && \
+    chown nextjs:nodejs .next
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
 
 # Copy Next.js build output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
