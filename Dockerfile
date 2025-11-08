@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Next.js with Convex using Bun
 
 # Stage 1: Dependencies
-FROM oven/bun:1.1.38-alpine AS deps
+FROM oven/bun:1.3.2-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile --production=false
 
 # Stage 2: Builder
-FROM oven/bun:1.1.38-alpine AS builder
+FROM oven/bun:1.3.2-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -39,7 +39,7 @@ RUN bunx convex deploy && \
     bun run build
 
 # Stage 3: Runner
-FROM oven/bun:1.1.38-alpine AS runner
+FROM oven/bun:1.3.2-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
