@@ -18,7 +18,9 @@ import {
     InfoIcon,
     RepeatIcon,
     UserIcon,
+    PencilIcon,
 } from "lucide-react";
+import { EditRecurringRuleDialog } from "./EditRecurringRuleDialog";
 
 export function RecurringBookingsSection() {
     const recurringRules = useQuery(api.recurringRules.integrations.reads.getMyRecurringRules);
@@ -27,6 +29,7 @@ export function RecurringBookingsSection() {
     const deleteRule = useMutation(api.recurringRules.integrations.writes.deleteRecurringRule);
 
     const [groupBy, setGroupBy] = useState<"tutor" | "weekday">("tutor");
+    const [editingRule, setEditingRule] = useState<any>(null);
 
     const formatDay = (day: string) => {
         return day.charAt(0).toUpperCase() + day.slice(1);
@@ -265,6 +268,15 @@ export function RecurringBookingsSection() {
 
                                             {/* Actions */}
                                             <div className="flex gap-1">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setEditingRule(item)}
+                                                    className="gap-1.5"
+                                                >
+                                                    <PencilIcon className="size-3.5" />
+                                                    Edit
+                                                </Button>
                                                 {item.rule.status === "active" && (
                                                     <Button
                                                         variant="outline"
@@ -319,6 +331,16 @@ export function RecurringBookingsSection() {
                     })}
                 </div>
             ))}
+
+            {/* Edit Dialog */}
+            {editingRule && (
+                <EditRecurringRuleDialog
+                    isOpen={!!editingRule}
+                    onClose={() => setEditingRule(null)}
+                    rule={editingRule.rule}
+                    otherUser={editingRule.currentUser._id === editingRule.rule.fromUserId ? editingRule.toUser : editingRule.fromUser}
+                />
+            )}
         </div>
     );
 }
