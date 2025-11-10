@@ -16,6 +16,7 @@ export async function _createBookingMutation(
         bookingType?: BookingType;
         recurringRuleId?: Id<"recurringRules">; // Link to recurring rule if created from one
         skipRecurringRuleCheck?: boolean; // Skip recurring rule validation for recurring bookings
+        createdByUserId?: Id<"users">; // The actual user who created the booking (for lastActionByUserId)
     }
 ) {
     // Validate tutor-student relationship
@@ -45,6 +46,9 @@ export async function _createBookingMutation(
     });
 
     // Create booking
+    // Use createdByUserId for lastActionByUserId if provided, otherwise default to fromUserId
+    const creatorId = args.createdByUserId ?? args.fromUserId;
+    
     const bookingId = await ctx.db.insert("bookings", {
         fromUserId: args.fromUserId,
         toUserId: args.toUserId,
@@ -52,12 +56,12 @@ export async function _createBookingMutation(
         status: "pending",
         bookingType: bookingTypeValue,
         events: [],
-        lastActionByUserId: args.fromUserId,
+        lastActionByUserId: creatorId,
         recurringRuleId: args.recurringRuleId, // Link to recurring rule if provided
     });
 
-    // Add creation event
-    await _addBookingEventMutation(ctx, bookingId, args.fromUserId, "created", {
+    // Add creation event with the actual creator
+    await _addBookingEventMutation(ctx, bookingId, creatorId, "created", {
         scheduledTime: args.timestamp,
     });
 }

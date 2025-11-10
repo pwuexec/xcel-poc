@@ -5,11 +5,13 @@ import { _rejectBookingMutation } from "../cases/mutations/_rejectBookingMutatio
 import { _cancelBookingMutation } from "../cases/mutations/_cancelBookingMutation";
 import { _rescheduleBookingMutation } from "../cases/mutations/_rescheduleBookingMutation";
 import { _completeBookingMutation } from "../cases/mutations/_completeBookingMutation";
-import { getCurrentUserIdOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
+import { getCurrentUserIdOrThrow, getCurrentUserOrThrow } from "../../users/cases/queries/_getCurrentUserQuery";
 import { _createBookingMutation } from "../cases/mutations/_createBookingMutation";
+import { _isRole } from "../../users/cases/_isRole";
 
 /**
  * Public mutation to create a new booking
+ * Note: fromUserId is always the student, toUserId is always the tutor
  */
 export const createBookingMutation = mutation({
     args: {
@@ -18,11 +20,20 @@ export const createBookingMutation = mutation({
         bookingType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
     },
     handler: async (ctx, args) => {
+        const currentUserId = await getCurrentUserIdOrThrow(ctx);
+        const currentUser = await getCurrentUserOrThrow(ctx);
+        const isTutor = _isRole(currentUser, "tutor");
+        
+        // fromUserId is always the student, toUserId is always the tutor
+        const fromUserId = isTutor ? args.toUserId : currentUserId;
+        const toUserId = isTutor ? currentUserId : args.toUserId;
+        
         return await _createBookingMutation(ctx, {
-            fromUserId: await getCurrentUserIdOrThrow(ctx),
-            toUserId: args.toUserId,
+            fromUserId,
+            toUserId,
             timestamp: args.timestamp,
             bookingType: args.bookingType,
+            createdByUserId: currentUserId, // Pass the actual creator
         });
     },
 });
